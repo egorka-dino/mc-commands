@@ -111,7 +111,7 @@ const MOB_GROUPS = [
   { name: 'Прочее', mobs: [
     ['armor_stand', 'Стойка для брони'], ['item_frame', 'Рамка'], ['glow_item_frame', 'Сияющая рамка'],
     ['minecart', 'Вагонетка'], ['boat', 'Лодка'], ['tnt', 'Динамит'],
-    ['firework_rocket', 'Фейерверк'], ['experience_orb', 'Сфера опыта'],
+    ['fireball', 'Фаерболл'], ['firework_rocket', 'Фейерверк'], ['experience_orb', 'Сфера опыта'],
     ['lightning_bolt', 'Молния'], ['area_effect_cloud', 'Облако эффектов'],
   ]},
 ];
@@ -276,6 +276,10 @@ const NAME_COLORS = [
   ['light_purple','розовый'], ['dark_purple','фиолетовый'],
 ];
 
+function isFireball(typeId) {
+  return typeId === 'fireball';
+}
+
 // ==================== СОСТОЯНИЕ ====================
 let mobs = [];
 let nextMobId = 0;
@@ -395,6 +399,17 @@ function buildMobCard(mob, index) {
           <label><span class="lab">Сопр. отбрасыв. (0–1)</span><input type="number" data-field="${prefix}-kb" min="0" max="1" step="0.1" placeholder="по умолч."></label>
           <label><span class="lab">Масштаб (0–16)</span><input type="number" data-field="${prefix}-scale" min="0" max="16" step="1" placeholder="1.0"></label>
         </div>
+      </div>
+
+      <div class="section fireball-section" data-fireball-for="${prefix}" style="display:none;">
+        <div class="section-title">🔥 Фаерболл</div>
+        <div class="grid-3">
+          <label><span class="lab">Power X</span><input type="number" data-field="${prefix}-power-x" step="0.1" value="0.0"></label>
+          <label><span class="lab">Power Y</span><input type="number" data-field="${prefix}-power-y" step="0.1" value="0.0"></label>
+          <label><span class="lab">Power Z</span><input type="number" data-field="${prefix}-power-z" step="0.1" value="1.0"></label>
+          <label><span class="lab">Мощность взрыва</span><input type="number" data-field="${prefix}-explosion-power" min="0" max="127" step="1" value="1"></label>
+        </div>
+        <p class="hint">Урон и радиус взрыва зависят от мощности. Пример сильного фаерболла: Power 0, 0, 1 и мощность 125.</p>
       </div>
 
       <div class="section">
@@ -533,6 +548,7 @@ function renderAll() {
   mobs.forEach((mob, i) => {
     cont.appendChild(buildMobCard(mob, i));
     buildSlotsForMob(`m${mob.id}`);
+    updateFireballSection(`m${mob.id}`);
   });
 }
 
@@ -543,6 +559,7 @@ function addPassenger() {
   const index = mobs.length - 1;
   cont.appendChild(buildMobCard(newMob, index));
   buildSlotsForMob(`m${newMob.id}`);
+  updateFireballSection(`m${newMob.id}`);
   generate();
 }
 
@@ -631,6 +648,7 @@ function handleChange(e) {
       const idx = mobs.indexOf(mob);
       const stackInfo = idx === 0 ? 'снизу' : (idx === 1 ? 'на основном' : `на пассажире №${idx - 1}`);
       title.innerHTML = `${ALL_MOBS[el.value]} <small>${stackInfo}</small>`;
+      updateFireballSection(`m${mobId}`);
     }
   }
 
@@ -638,6 +656,12 @@ function handleChange(e) {
   if (el.classList && el.classList.contains('slot-item')) {
     refreshEnchantList(el.dataset.prefix, el.dataset.slotKey);
   }
+}
+
+function updateFireballSection(prefix) {
+  const section = document.querySelector(`[data-fireball-for="${prefix}"]`);
+  if (!section) return;
+  section.style.display = isFireball(val(prefix, 'mob')) ? '' : 'none';
 }
 
 // ==================== ГЕНЕРАЦИЯ ====================
@@ -648,6 +672,7 @@ function val(prefix, field) {
 
 function buildNBTPartsFor(prefix) {
   const parts = [];
+  const mobType = val(prefix, 'mob');
 
   const name = (val(prefix, 'name') || '').trim();
   if (name) {
@@ -691,6 +716,16 @@ function buildNBTPartsFor(prefix) {
   const scale = val(prefix, 'scale');
   if (scale) attrs.push(`{id:"minecraft:scale",base:${parseFloat(scale)}}`);
   if (attrs.length) parts.push(`attributes:[${attrs.join(',')}]`);
+
+  if (isFireball(mobType)) {
+    const px = parseFloat(val(prefix, 'power-x'));
+    const py = parseFloat(val(prefix, 'power-y'));
+    const pz = parseFloat(val(prefix, 'power-z'));
+    const explosionPower = parseInt(val(prefix, 'explosion-power'));
+    const power = [px, py, pz].map(n => Number.isFinite(n) ? n.toFixed(1) : '0.0');
+    parts.push(`Power:[${power.join(',')}]`);
+    if (!isNaN(explosionPower)) parts.push(`ExplosionPower:${explosionPower}`);
+  }
 
   const equipParts = [];
   const dropParts = [];
@@ -792,7 +827,7 @@ function previewFlags(prefix) {
 }
 
 function previewStats(prefix) {
-  return [
+  const stats = [
     ['HP', previewValue(prefix, 'health')],
     ['Скорость', previewValue(prefix, 'speed')],
     ['Броня', previewValue(prefix, 'armor')],
@@ -800,6 +835,18 @@ function previewStats(prefix) {
     ['Отбрасывание', previewValue(prefix, 'kb')],
     ['Масштаб', previewValue(prefix, 'scale')],
   ].filter(([, value]) => value).map(([label, value]) => `${label}: ${escapeHtml(value)}`);
+
+  if (isFireball(previewValue(prefix, 'mob'))) {
+    const power = [
+      previewValue(prefix, 'power-x') || '0.0',
+      previewValue(prefix, 'power-y') || '0.0',
+      previewValue(prefix, 'power-z') || '1.0',
+    ];
+    stats.push(`Направление: ${power.map(escapeHtml).join(', ')}`);
+    stats.push(`Мощность взрыва: ${escapeHtml(previewValue(prefix, 'explosion-power') || '1')}`);
+  }
+
+  return stats;
 }
 
 function previewGear(prefix) {
@@ -1015,6 +1062,8 @@ function restoreSnapshot(item) {
       if (el.type === 'checkbox') el.checked = (v === true || v === 'true');
       else el.value = v !== undefined ? v : '';
     });
+
+    updateFireballSection(prefix);
   });
 
   generate();
