@@ -225,6 +225,13 @@
     margin-top: 10px;
     flex-wrap: wrap;
   }
+  .random-panel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .random-panel .hint { margin-top: 0; }
 
   .output-panel { background: var(--code-bg); border-color: var(--accent); }
   .output-panel h2 { color: var(--accent); }

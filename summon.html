@@ -32,11 +32,15 @@
     <div id="favorites-list"></div>
   </div>
 
+  <div class="panel random-panel">
+    <button class="random" onclick="randomizeSummon()">🎲 Случайно</button>
+    <span class="hint">Собрать случайного моба с характеристиками, снаряжением, эффектами и возможными пассажирами.</span>
+  </div>
+
   <div class="panel">
     <h2>Мобы <span class="sub">основной + пассажиры (верхом)</span></h2>
     <div id="mobs-container"></div>
     <div class="passenger-controls">
-      <button class="random" onclick="randomizeSummon()">🎲 Случайно</button>
       <button class="info" onclick="addPassenger()">+ Добавить пассажира</button>
       <span class="hint" style="align-self:center;">Первый пассажир сидит на основном, второй на первом, и т.д.</span>
     </div>
