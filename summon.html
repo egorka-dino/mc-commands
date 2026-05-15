@@ -36,6 +36,7 @@
     <h2>Мобы <span class="sub">основной + пассажиры (верхом)</span></h2>
     <div id="mobs-container"></div>
     <div class="passenger-controls">
+      <button class="random" onclick="randomizeSummon()">🎲 Случайно</button>
       <button class="info" onclick="addPassenger()">+ Добавить пассажира</button>
       <span class="hint" style="align-self:center;">Первый пассажир сидит на основном, второй на первом, и т.д.</span>
     </div>
@@ -61,7 +62,7 @@
   <div class="panel">
     <h2>📖 Как пользоваться</h2>
     <p style="font-size:13px; line-height:1.6;">
-    1. Настрой основного моба (зелёная карточка).<br>
+    1. Настрой основного моба (зелёная карточка) или нажми «🎲 Случайно».<br>
     2. Хочешь «куриного жокея»? Жми «+ Добавить пассажира» — появится синяя карточка с теми же настройками.<br>
     3. Можно добавлять сколько угодно пассажиров — многоуровневый бутерброд (паук→скелет→зомби).<br>
     4. Клик по шапке карточки — свернуть, чтобы не мешала.<br>
@@ -118,6 +119,31 @@ const MOB_GROUPS = [
 
 const ALL_MOBS = {};
 MOB_GROUPS.forEach(g => g.mobs.forEach(m => ALL_MOBS[m[0]] = m[1]));
+
+const RANDOM_MOBS = [
+  'zombie', 'husk', 'drowned', 'skeleton', 'stray', 'wither_skeleton', 'bogged',
+  'creeper', 'spider', 'cave_spider', 'enderman', 'silverfish', 'zombified_piglin',
+  'piglin', 'piglin_brute', 'blaze', 'magma_cube', 'slime', 'hoglin', 'zoglin',
+  'vex', 'evoker', 'vindicator', 'pillager', 'ravager', 'witch', 'phantom',
+  'guardian', 'warden', 'breeze', 'creaking', 'wolf', 'fox', 'goat', 'bee',
+  'iron_golem', 'snow_golem', 'cow', 'pig', 'sheep', 'chicken', 'rabbit',
+  'horse', 'skeleton_horse', 'zombie_horse', 'cat', 'parrot', 'villager',
+  'axolotl', 'frog', 'turtle', 'camel', 'sniffer', 'armadillo', 'allay',
+  'strider', 'happy_ghast'
+];
+
+const RANDOM_BABY_MOBS = new Set([
+  'zombie', 'husk', 'drowned', 'zombie_villager', 'zombified_piglin', 'piglin',
+  'hoglin', 'zoglin', 'cow', 'mooshroom', 'pig', 'sheep', 'chicken', 'rabbit',
+  'horse', 'donkey', 'mule', 'cat', 'ocelot', 'fox', 'goat', 'llama',
+  'trader_llama', 'wolf', 'panda', 'bee', 'villager', 'turtle', 'camel',
+  'sniffer', 'armadillo'
+]);
+
+const RANDOM_NAMES = [
+  'Громила', 'Искатель', 'Шалун', 'Хранитель', 'Капитан', 'Бродяга',
+  'Сюрприз', 'Прыг-Скок', 'Ночной гость', 'Легенда', 'Зубастик', 'Босс'
+];
 
 const SLOTS = [
   { key: 'head', label: 'Шлем',         items: ['netherite_helmet','diamond_helmet','iron_helmet','golden_helmet','chainmail_helmet','leather_helmet','turtle_helmet','carved_pumpkin','player_head','zombie_head','skeleton_skull','creeper_head','dragon_head','piglin_head'] },
@@ -939,6 +965,130 @@ function resetAll() {
   document.getElementById('coords').value = '~ ~ ~';
   renderAll();
   generate();
+}
+
+// ==================== СЛУЧАЙНЫЙ МОБ ====================
+
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function chance(p) {
+  return Math.random() < p;
+}
+
+function pick(list) {
+  return list[randInt(0, list.length - 1)];
+}
+
+function setField(prefix, field, value) {
+  const el = document.querySelector(`[data-field="${prefix}-${field}"]`);
+  if (!el) return;
+  if (el.type === 'checkbox') {
+    el.checked = Boolean(value);
+  } else {
+    el.value = value;
+  }
+}
+
+function randomStat(min, max, step) {
+  const steps = Math.round((max - min) / step);
+  return (min + randInt(0, steps) * step).toFixed(step < 1 ? 2 : 0).replace(/\.?0+$/, '');
+}
+
+function randomEquipmentFor(prefix, mobType) {
+  const gearChance = ['zombie', 'husk', 'drowned', 'skeleton', 'stray', 'wither_skeleton', 'bogged', 'piglin', 'piglin_brute', 'zombified_piglin', 'vindicator', 'pillager'].includes(mobType) ? 0.78 : 0.32;
+  if (!chance(gearChance)) return;
+
+  SLOTS.forEach(slot => {
+    const slotChance = slot.key === 'mainhand' ? 0.72 : (slot.key === 'offhand' ? 0.25 : 0.45);
+    if (!chance(slotChance)) return;
+
+    const itemId = pick(slot.items);
+    setField(prefix, `slot-${slot.key}`, itemId);
+    refreshEnchantList(prefix, slot.key);
+    setField(prefix, `count-${slot.key}`, slot.key.includes('hand') && chance(0.12) ? randInt(2, 8) : 1);
+    setField(prefix, `drop-${slot.key}`, chance(0.18) ? randomStat(0.1, 1, 0.1) : 0);
+
+    if (itemId.startsWith('leather_') && chance(0.65)) {
+      const colors = ['#6ab04c', '#ffb347', '#8ab4f8', '#e55a5a', '#9b59b6', '#f1c40f'];
+      setField(prefix, `dyeon-${slot.key}`, true);
+      setField(prefix, `dye-${slot.key}`, pick(colors));
+    }
+
+    if (canHaveTrim(itemId) && chance(0.3)) {
+      setField(prefix, `trimon-${slot.key}`, true);
+      setField(prefix, `trimmat-${slot.key}`, pick(TRIM_MATERIALS)[0]);
+      setField(prefix, `trimpat-${slot.key}`, pick(TRIM_PATTERNS)[0]);
+    }
+
+    const possibleEnchants = enchantsForItem(itemId);
+    possibleEnchants
+      .filter(() => chance(0.24))
+      .slice(0, randInt(1, 3))
+      .forEach(ench => {
+        setField(prefix, `ench-${slot.key}-${ench.id}`, true);
+        setField(prefix, `enchlvl-${slot.key}-${ench.id}`, randInt(1, ench.max));
+      });
+  });
+}
+
+function randomEffectsFor(prefix) {
+  const effectPool = ['speed', 'strength', 'resistance', 'fire_resistance', 'regeneration', 'jump_boost', 'glowing', 'slow_falling', 'invisibility', 'health_boost'];
+  const count = chance(0.55) ? randInt(1, 3) : 0;
+  const chosen = new Set();
+  while (chosen.size < count) chosen.add(pick(effectPool));
+  chosen.forEach(effectId => {
+    setField(prefix, `eff-${effectId}`, true);
+    setField(prefix, `effamp-${effectId}`, randInt(0, 2));
+    setField(prefix, `effdur-${effectId}`, pick([1200, 3600, 12000, 999999]));
+  });
+}
+
+function randomizeMob(prefix, mob, index) {
+  const mobType = pick(RANDOM_MOBS);
+  mob.mobType = mobType;
+  setField(prefix, 'mob', mobType);
+
+  setField(prefix, 'name', chance(0.45) ? pick(RANDOM_NAMES) : '');
+  setField(prefix, 'name-color', chance(0.7) ? pick(NAME_COLORS.slice(1))[0] : '');
+  setField(prefix, 'name-bold', chance(0.25));
+  setField(prefix, 'name-italic', chance(0.12));
+  setField(prefix, 'name-visible', chance(0.8));
+
+  setField(prefix, 'health', chance(0.62) ? randInt(10, index === 0 ? 160 : 80) : '');
+  setField(prefix, 'speed', chance(0.32) ? randomStat(0.15, 0.6, 0.05) : '');
+  setField(prefix, 'armor', chance(0.35) ? randInt(2, 24) : '');
+  setField(prefix, 'attack', chance(0.42) ? randomStat(2, 24, 0.5) : '');
+  setField(prefix, 'kb', chance(0.28) ? randomStat(0.1, 1, 0.1) : '');
+  setField(prefix, 'scale', chance(0.42) ? randomStat(0.5, 3, 0.5) : '');
+
+  setField(prefix, 'baby', RANDOM_BABY_MOBS.has(mobType) && chance(0.2));
+  setField(prefix, 'invul', chance(0.06));
+  setField(prefix, 'silent', chance(0.12));
+  setField(prefix, 'noai', chance(0.05));
+  setField(prefix, 'noburn', chance(0.22));
+  setField(prefix, 'onfire', chance(0.08));
+  setField(prefix, 'glow', chance(0.24));
+  setField(prefix, 'nogravity', chance(0.05));
+  setField(prefix, 'persist', true);
+  setField(prefix, 'nobreath', chance(0.12));
+  setField(prefix, 'boss', index === 0 && chance(0.18));
+
+  randomEquipmentFor(prefix, mobType);
+  randomEffectsFor(prefix);
+  updateFireballSection(prefix);
+}
+
+function randomizeSummon() {
+  const passengerCount = chance(0.55) ? randInt(1, chance(0.25) ? 3 : 2) : 0;
+  mobs = Array.from({ length: passengerCount + 1 }, () => createMobState());
+  document.getElementById('coords').value = '~ ~ ~';
+  renderAll();
+  mobs.forEach((mob, index) => randomizeMob(`m${mob.id}`, mob, index));
+  updateMobLabels();
+  generate();
+  showToast('🎲 Случайный моб готов');
 }
 
 // ==================== ЛЮБИМЧИКИ ====================

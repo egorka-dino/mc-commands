@@ -262,6 +262,7 @@
   button.danger { background: var(--danger); color: #fff; }
   button.small { padding: 5px 9px; font-size: 8px; }
   button.info { background: var(--accent-3); color: #000; }
+  button.random { background: #c7f464; color: #000; }
 
   .hint { font-size: 11px; color: var(--muted); margin-top: 4px; font-style: italic; }
   .warn {
