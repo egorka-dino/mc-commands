@@ -1,11 +1,41 @@
 # mc-commands
   Генераторы команд Minecraft Java Edition 1.21.5+.
 
+  ## Текущий стек
+  - Сайт деплоится на Vercel как Next.js-приложение.
+  - Используется Next.js App Router, TypeScript, React и route handlers.
+  - Пользовательские генераторы пока остаются legacy HTML/CSS/JS без переписывания в React.
+  - Авторизация подключена через Clerk (`@clerk/nextjs`).
+  - База данных подключается через Neon serverless (`@neondatabase/serverless`).
+  - Внешние зависимости уже есть; новые добавлять только при явной пользе и без утяжеления простых генераторов.
+
   ## Структура файлов
-  - `index.html` — лендинг mc-commands
-  - `summon.html` — генератор /summon
-  - `give.html` — генератор /give
-  - `style.css` — общий CSS
+  - `app/route.ts` — главная `/`, отдает legacy `index.html` через Next.js.
+  - `app/summon/route.ts` — `/summon`, отдает legacy `summon.html`.
+  - `app/give/route.ts` — `/give`, отдает legacy `give.html`.
+  - `app/style.css/route.ts` — `/style.css`, отдает корневой `style.css`.
+  - `app/lib/legacy-page.ts` — чтение legacy HTML, нормализация ссылок и вставка auth-блока Clerk.
+  - `app/layout.tsx` и `app/globals.css` — общий React layout и стили для Next.js/Clerk-страниц.
+  - `app/sign-in/`, `app/sign-up/`, `app/sign-out/` — страницы авторизации Clerk.
+  - `app/api/health/route.ts` — healthcheck Next.js runtime.
+  - `app/api/db/health/route.ts` — healthcheck Neon Postgres.
+  - `app/api/auth/status/route.ts` — статус настройки Clerk и текущего пользователя.
+  - `app/api/auth/google/route.ts` — совместимый редирект старого Google-входа на Clerk sign-in.
+  - `app/server/db.ts` — Neon client и проверка подключения.
+  - `proxy.ts` — Clerk middleware; пропускает запросы, если ключи Clerk не настроены.
+  - `index.html` — legacy лендинг mc-commands.
+  - `summon.html` — legacy генератор `/summon`.
+  - `give.html` — legacy генератор `/give`.
+  - `style.css` — общий CSS для legacy страниц.
+  - `next.config.ts`, `tsconfig.json`, `package.json`, `vercel.json` — конфигурация Next.js, TypeScript, npm и Vercel.
+
+  ## Локальная разработка
+  - Установка зависимостей: `npm install`.
+  - Dev-сервер: `npm run dev`.
+  - Production build: `npm run build`.
+  - Production start после build: `npm run start`.
+  - Для auth/db использовать `.env.local`; пример переменных хранится в `.env.example`.
+  - Локальные переменные из Vercel можно подтянуть командой `npx vercel@latest env pull .env.local`.
 
   ## Ключевые факты
   - Формат предметов: components:{enchantments:{id:lvl}} (без levels, было в 1.20.5)
@@ -16,8 +46,9 @@
   ## Стиль
   - Интерфейс на русском
   - Блок «Что нового» на лендинге группировать по датам релиза, новые даты выше старых
-  - Без внешних зависимостей кроме Google Fonts
-  - Ни фреймворков, ни сборки
+  - Legacy-страницы должны оставаться легкими: обычные HTML/CSS/JS, без клиентских фреймворков внутри генераторов.
+  - Google Fonts допустимы; новые внешние клиентские ресурсы добавлять осторожно.
+  - Не переписывать legacy HTML в React без отдельного решения на такую миграцию.
 
   ## Оповещения
   - После функциональных изменений, заметных игрокам или пользователям сайта, предлагать опубликовать сообщение в Minecraft-чате через Telegram-бота.
