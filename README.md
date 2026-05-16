@@ -15,18 +15,26 @@
 - Команда обновляется автоматически в реальном времени
 - Предупреждение, если команда длиннее 256 символов (нужен командный блок)
 
-## Как выложить на GitHub Pages
+## Как выложить на Vercel
 
-1. Заходишь на [github.com](https://github.com), регистрируешься если нет аккаунта
-2. Кнопка **New repository** (зелёная, справа сверху)
-3. Имя репозитория любое, например `mc-summon`. Поставь галочку **Public**. Создать.
-4. На странице пустого репозитория → **uploading an existing file** (ссылка посреди экрана)
-5. Перетащи файл `index.html` в окно, нажми **Commit changes**
-6. Открой вкладку **Settings** (верхняя панель репозитория)
-7. Слева выбери **Pages**
-8. В разделе **Source** выбери ветку `main`, папка `/ (root)`, нажми **Save**
-9. Подожди 1–2 минуты, обнови страницу — наверху появится зелёная плашка с адресом вида `https://твой-логин.github.io/mc-summon/`
-10. Эту ссылку можно отправить сыну, открывать с телефона, планшета, компьютера — всё работает
+1. Зайти на [vercel.com](https://vercel.com) и войти через GitHub
+2. Нажать **Add New...** → **Project**
+3. Импортировать репозиторий `egorka-dino/mc-summon`
+4. Framework Preset оставить **Other**
+5. Build Command оставить пустым
+6. Output Directory оставить пустым
+7. Нажать **Deploy**
+8. После деплоя открыть **Settings** → **Domains** и добавить `mc-commands.egorka.fun`
+9. В DNS домена направить `mc-commands.egorka.fun` на Vercel по подсказке в интерфейсе Vercel
+10. После этого каждый `git push` в `main` будет автоматически обновлять сайт на Vercel
+
+Текущий production URL: [https://mc-summon.vercel.app](https://mc-summon.vercel.app)
+
+Для кастомного домена `mc-commands.egorka.fun` Vercel ожидает DNS-запись:
+
+```text
+A mc-commands.egorka.fun 76.76.21.21
+```
 
 ## Как пользоваться
 
