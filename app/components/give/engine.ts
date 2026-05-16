@@ -70,7 +70,7 @@ export function isPotion(id: string) {
 
 export function potionOptions(itemId: string) {
   const effect = itemId.split(":")[1];
-  const entry = (POTIONS as Array<[string, string, boolean, boolean]>).find((p) => p[0] === effect);
+  const entry = POTIONS.find((p) => p[0] === effect);
   return { hasLong: Boolean(entry?.[2]), hasStrong: Boolean(entry?.[3]) };
 }
 
