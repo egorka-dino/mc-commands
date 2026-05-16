@@ -1005,6 +1005,10 @@ function getTarget() {
   return custom || document.getElementById('target-preset').value;
 }
 
+function buildGiveCommand(target, itemId, compStr, count) {
+  return `/give ${target} minecraft:${itemId}${compStr} ${count}`;
+}
+
 function generate() {
   const rawItemId = document.getElementById('item-select').value;
   if (!rawItemId) {
@@ -1018,14 +1022,16 @@ function generate() {
   const count = Math.max(1, Math.min(64, parseInt(document.getElementById('item-count').value) || 1));
   const comps = buildComponents();
   const compStr = comps.length ? `[${comps.join(',')}]` : '';
-  const cmd = `/give ${target} minecraft:${itemId}${compStr} ${count}`;
+  let cmd = buildGiveCommand(target, itemId, compStr, count);
+  const autoTarget = target === '@s' && cmd.length > 256 ? '@p' : target;
+  if (autoTarget !== target) cmd = buildGiveCommand(autoTarget, itemId, compStr, count);
 
   document.getElementById('command-output').textContent = cmd;
   const cc = document.getElementById('char-count');
   cc.textContent = `Длина: ${cmd.length} символов`;
   cc.className = 'char-count' + (cmd.length > 256 ? ' long' : '');
   document.getElementById('length-warn').innerHTML = cmd.length > 256
-    ? '<div class="warn">⚠ Команда длиннее 256 символов — используй командный блок: <code>/give @s command_block</code></div>'
+    ? `<div class="warn">⚠ Команда длиннее 256 символов — используй командный блок: <code>/give @s command_block</code>${autoTarget !== target ? '. Цель в команде автоматически заменена с <code>@s</code> на <code>@p</code>, чтобы командный блок выдал предмет ближайшему игроку.' : ''}</div>`
     : '';
 }
 
