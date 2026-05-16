@@ -1,2 +1,7 @@
 .worktrees/
 .vercel/
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env*.local

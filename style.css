@@ -25,6 +25,7 @@
       radial-gradient(circle at 80% 100%, rgba(255,179,71,0.06) 0%, transparent 40%);
   }
   header {
+    position: relative;
     padding: 24px 20px 12px;
     text-align: center;
     border-bottom: 2px solid var(--border);
@@ -38,6 +39,57 @@
     letter-spacing: 1px;
   }
   header p { color: var(--muted); margin: 4px 0; font-size: 13px; }
+  .auth-corner {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    max-width: min(360px, 36vw);
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .auth-text { line-height: 1.35; }
+  .auth-user {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    gap: 8px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .auth-user span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .auth-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  .auth-button,
+  .auth-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 9px;
+    border: 2px solid var(--accent-3);
+    border-radius: 3px;
+    color: var(--text);
+    background: var(--panel);
+    text-decoration: none;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .auth-button:hover,
+  .auth-link:hover {
+    border-color: var(--accent-2);
+    color: var(--accent-2);
+  }
   .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -448,6 +500,15 @@
 
   @media (max-width: 600px) {
     h1 { font-size: 13px; }
+    .auth-corner {
+      position: static;
+      justify-content: center;
+      max-width: none;
+      margin-top: 10px;
+    }
+    .auth-corner.signed-in { justify-content: center; }
+    .auth-user { max-width: calc(100% - 72px); }
+    .auth-button { justify-content: center; }
     .panel, .mob-body { padding: 12px; }
     .preset-picker { grid-template-columns: 1fr; }
     .preview-top { align-items: flex-start; flex-direction: column; gap: 4px; }

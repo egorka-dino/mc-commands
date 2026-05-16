@@ -15,13 +15,70 @@
 - Команда обновляется автоматически в реальном времени
 - Предупреждение, если команда длиннее 256 символов (нужен командный блок)
 
+## Технологический слой
+
+Сайт постепенно переезжает на Next.js, но текущие генераторы пока оставлены как legacy HTML-страницы:
+
+- `/` отдает `index.html`
+- `/summon` отдает `summon.html`
+- `/give` отдает `give.html`
+- `/api/health` проверяет, что backend-слой Next.js отвечает
+- `/api/db/health` проверяет подключение к Neon Postgres
+- `/sign-in` и `/sign-up` отдают готовые страницы Clerk
+- `/api/auth/google` перенаправляет на Clerk sign-in для старых ссылок
+- `/api/auth/status` показывает готовность Clerk и текущего пользователя
+
+Такой слой позволяет добавлять backend, базу данных и авторизацию без немедленной переписи всей логики генераторов.
+
+### Локально
+
+```bash
+npm install
+npm run dev
+```
+
+Для будущей базы данных и авторизации скопировать `.env.example` в `.env.local` и заполнить значения:
+
+```bash
+cp .env.example .env.local
+```
+
+База данных подключена через Vercel Marketplace Neon. Локальные переменные можно обновить из Vercel:
+
+```bash
+npx vercel@latest env pull .env.local
+```
+
+### Clerk-логин
+
+Авторизация сделана через Clerk. Для локальной разработки нужны переменные:
+
+```bash
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+```
+
+Google-вход включается в панели Clerk: **User & Authentication** → **Social connections** → **Google**. OAuth client ID/secret хранит Clerk, а не приложение.
+
+В Clerk нужно добавить домены приложения:
+
+```text
+http://localhost:3000
+https://mc-commands.vercel.app
+https://mc-commands.egorka.fun
+```
+
+На Vercel ключи можно добавить вручную или через Vercel Marketplace интеграцию Clerk.
+
 ## Как выложить на Vercel
 
 1. Зайти на [vercel.com](https://vercel.com) и войти через GitHub
 2. Нажать **Add New...** → **Project**
 3. Импортировать репозиторий `egorka-dino/mc-commands`
-4. Framework Preset оставить **Other**
-5. Build Command оставить пустым
+4. Framework Preset выбрать **Next.js**
+5. Build Command оставить `npm run build`
 6. Output Directory оставить пустым
 7. Нажать **Deploy**
 8. После деплоя открыть **Settings** → **Domains** и добавить `mc-commands.egorka.fun`
@@ -52,3 +109,5 @@ A mc-commands.egorka.fun 76.76.21.21
 ## Локально (без интернета)
 
 Просто открыть файл `index.html` двойным кликом — запустится в браузере, всё работает без сервера.
+
+Для разработки backend-слоя использовать `npm run dev`.

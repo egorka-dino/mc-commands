@@ -1,0 +1,27 @@
+@import url("https://fonts.googleapis.com/css2?family=Jost:wght@400;600;700&display=swap");
+
+:root {
+  --auth-bg: #1a1d22;
+  --auth-panel: #2a2e35;
+  --auth-text: #e8e6df;
+  --auth-accent: #6ab04c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--auth-bg);
+  color: var(--auth-text);
+  font-family: "Jost", sans-serif;
+}
+
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
