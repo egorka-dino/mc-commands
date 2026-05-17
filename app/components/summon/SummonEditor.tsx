@@ -183,6 +183,9 @@ export function SummonEditor({ adminMode = false, initialSnapshot, templates, on
   const [snapshot, setSnapshot] = useState(() => normalizeSnapshot(initialSnapshot || toSnapshot(["zombie"])));
   const [coords, setCoords] = useState("~ ~ ~");
   const [presetId, setPresetId] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiNotes, setAiNotes] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [toast, setToast] = useState("");
   const command = useMemo(() => buildSummonCommand(snapshot, coords), [snapshot, coords]);
@@ -243,6 +246,33 @@ export function SummonEditor({ adminMode = false, initialSnapshot, templates, on
     navigator.clipboard.writeText(text).then(() => showToast("Скопировано"));
   }
 
+  async function generateFromDescription() {
+    const prompt = aiPrompt.trim();
+    if (!prompt) {
+      showToast("Опиши моба словами");
+      return;
+    }
+    setAiBusy(true);
+    setAiNotes([]);
+    try {
+      const response = await fetch("/api/ai/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "summon", prompt }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "Не получилось понять описание");
+      updateSnapshot(data.snapshot);
+      setPresetId("");
+      setAiNotes([data.summary, ...(data.notes || [])].filter(Boolean));
+      showToast("Описание применено");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Не получилось понять описание");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   function applyPreset(id: string) {
     setPresetId(id);
     const preset = presets.find((item) => item.id === id);
@@ -281,6 +311,19 @@ export function SummonEditor({ adminMode = false, initialSnapshot, templates, on
               {selectedPreset ? <><strong>{selectedPreset.name}</strong><span>{selectedPreset.description}</span><code>{selectedPreset.mobOrder.map((mob) => ALL_MOBS[mob.mobType] || mob.mobType).join(" -> ")}</code></> : presets.length ? <span>Шаблон сразу заменит текущего моба и пассажиров.</span> : <span>Пока нет общих шаблонов.</span>}
             </div>
           </div>
+        </section>
+      ) : null}
+
+      {!adminMode ? (
+        <section className="panel ai-panel">
+          <h2>Собрать словами <span className="sub">AI-помощник</span></h2>
+          <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Например: зомби в незеритке с усталостью копания пятого уровня, мечом на остроту V и курицей-пассажиром" rows={3} />
+          <div className="btn-row ai-actions">
+            <button type="button" onClick={generateFromDescription} disabled={aiBusy}>{aiBusy ? "Думаю..." : "Понять описание"}</button>
+            <button className="sec" type="button" onClick={() => setAiPrompt("")} disabled={aiBusy || !aiPrompt}>Очистить</button>
+          </div>
+          <p className="hint">Модель получает списки мобов, предметов, эффектов, чар, слотов и правил этого генератора. Неизвестные ID сервер отбрасывает.</p>
+          {aiNotes.length ? <ul className="ai-notes">{aiNotes.map((note, index) => <li key={`${note}-${index}`}>{note}</li>)}</ul> : null}
         </section>
       ) : null}
 

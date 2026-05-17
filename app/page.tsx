@@ -2,6 +2,12 @@ import { AuthCorner } from "./components/AuthCorner";
 
 const releases = [
   {
+    date: "17 мая 2026",
+    items: [
+      <>В <strong style={{ color: "var(--accent)" }}>/summon</strong> и <strong style={{ color: "var(--accent-2)" }}>/give</strong> появился <strong>AI-помощник «Собрать словами»</strong>: опиши по-человечески моба или предмет, а сайт заполнит подходящие поля редактора.</>,
+    ],
+  },
+  {
     date: "16 мая 2026",
     items: [
       <>В <strong style={{ color: "var(--accent)" }}>/summon</strong> добавлены <strong>шаблоны мобов</strong>: выбираешь шаблон, и поля моба с пассажирами сразу заполняются.</>,
