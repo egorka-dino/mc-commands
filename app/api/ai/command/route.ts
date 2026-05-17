@@ -56,7 +56,7 @@ type AiPlan = {
 type PromptCacheRetention = "in_memory" | "24h";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_MODEL = "gpt-4.1-nano";
+const DEFAULT_MODEL = "gpt-4.1-mini";
 const PROMPT_CACHE_KEY_PREFIX = "mc-commands-ai-command";
 const maxMobs = 6;
 const validMobs = new Set(Object.keys(ALL_MOBS));
