@@ -380,6 +380,130 @@ body {
   background: rgba(138, 180, 248, 0.08);
 }
 
+.admin-exaroton {
+  width: min(1100px, 100%);
+  margin-top: 16px;
+}
+
+.admin-timestamp {
+  flex: 0 0 auto;
+  color: var(--auth-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-server-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.admin-server-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px;
+  border: 2px solid var(--auth-border);
+  border-radius: 4px;
+  background: rgba(14, 16, 19, 0.36);
+}
+
+.admin-server-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.admin-server-head h3 {
+  margin: 0 0 5px;
+  color: var(--auth-text);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.admin-server-head p {
+  max-width: none;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.admin-server-status {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid var(--auth-border);
+  border-radius: 3px;
+  background: var(--auth-panel-2);
+  color: var(--auth-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-server-status.online {
+  border-color: var(--auth-accent);
+  color: var(--auth-accent);
+}
+
+.admin-server-status.busy {
+  border-color: var(--auth-accent-2);
+  color: var(--auth-accent-2);
+}
+
+.admin-server-status.error {
+  border-color: #ff6b6b;
+  color: #ff8f8f;
+}
+
+.admin-server-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.admin-server-meta div {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-server-meta dt {
+  color: var(--auth-muted);
+  font-size: 12px;
+}
+
+.admin-server-meta dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--auth-text);
+  font-weight: 700;
+}
+
+.admin-player-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 32px;
+  align-items: center;
+}
+
+.admin-player-list span,
+.admin-player-list em {
+  padding: 5px 8px;
+  border: 1px solid var(--auth-border);
+  border-radius: 3px;
+  background: var(--auth-code);
+  color: var(--auth-code-text);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.admin-player-list em {
+  color: var(--auth-muted);
+  font-weight: 600;
+}
+
 .summon-app {
   display: grid;
   gap: 16px;
@@ -493,8 +617,13 @@ body {
   .admin-editor,
   .admin-form-grid,
   .admin-json-grid,
+  .admin-server-meta,
   .slot-grid,
   .shield-layer {
     grid-template-columns: 1fr;
+  }
+
+  .admin-server-head {
+    display: grid;
   }
 }

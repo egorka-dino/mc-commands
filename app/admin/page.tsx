@@ -104,6 +104,7 @@ export default async function AdminPage() {
         <article className="admin-card">
           <h2>Страницы</h2>
           <div className="admin-actions">
+            <a href="/admin/servers">Серверы Exaroton</a>
             <a href="/summon">Генератор /summon</a>
             <a href="/give">Генератор /give</a>
             <a href="/">Лендинг</a>
