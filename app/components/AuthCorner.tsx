@@ -21,7 +21,7 @@ export async function AuthCorner({ currentPath }: Props) {
     return (
       <div className="auth-corner">
         <a className="auth-button" href={`/sign-in?redirect_url=${encodeURIComponent(currentPath)}`}>
-          Войти через Google
+          Войти в портал
         </a>
       </div>
     );
