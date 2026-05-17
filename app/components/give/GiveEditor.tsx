@@ -86,6 +86,10 @@ function freshShieldLayer(pattern = "stripe_center", color = "black"): ShieldLay
   return { id: Date.now() + Math.random(), pattern, color };
 }
 
+function supportsBannerPatterns(itemId: string) {
+  return itemId === "shield" || itemId.endsWith("_banner");
+}
+
 function freshExplosion(): Explosion {
   return { id: Date.now() + Math.random(), shape: "small_ball", colors: ["#ff0000"], fadeColors: [], trail: false, twinkle: false };
 }
@@ -278,7 +282,7 @@ export function GiveEditor() {
       next.fields["trim-mat"] = pick(trimMaterials)[0];
       next.fields["trim-pat"] = pick(trimPatterns)[0];
     }
-    if (itemId === "shield" && chance(0.82)) {
+    if (supportsBannerPatterns(itemId) && chance(0.82)) {
       next.fields["shield-on"] = true;
       next.fields["shield-base"] = pick(dyeColors)[0];
       next.shieldLayers = Array.from({ length: randInt(1, 5) }, () => freshShieldLayer(pick(bannerPatterns)[0], pick(dyeColors)[0]));
@@ -432,8 +436,8 @@ export function GiveEditor() {
           </div>
         </div> : null}
 
-        {selectedItem === "shield" ? <div className="section"><div className="section-title">4. Узоры щита</div>
-          <CheckField label="Включить узоры и цвет щита" checked={checked("shield-on")} onChange={(value) => setField("shield-on", value)} />
+        {supportsBannerPatterns(selectedItem) ? <div className="section"><div className="section-title">{selectedItem === "shield" ? "4. Узоры щита" : "4. Узоры флага"}</div>
+          <CheckField label={selectedItem === "shield" ? "Включить узоры и цвет щита" : "Включить узоры и цвет флага"} checked={checked("shield-on")} onChange={(value) => setField("shield-on", value)} />
           {checked("shield-on") ? <div className="shield-card">
             <div className="grid-2">
               <SelectField label="Базовый цвет" value={field("shield-base", "white")} onChange={(value) => setField("shield-base", value)} options={dyeColors} withId />

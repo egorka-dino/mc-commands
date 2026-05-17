@@ -79,6 +79,10 @@ export function isPotion(id: string) {
   return id.startsWith("potion:");
 }
 
+function supportsBannerPatterns(itemId: string) {
+  return itemId === "shield" || itemId.endsWith("_banner");
+}
+
 export function potionOptions(itemId: string) {
   const effect = itemId.split(":")[1];
   const entry = POTIONS.find((p) => p[0] === effect);
@@ -175,7 +179,7 @@ function buildComponents(snapshot: GiveSnapshot) {
     comps.push(`trim={material:"${stringValue(snapshot, "trim-mat", "iron")}",pattern:"${stringValue(snapshot, "trim-pat", "sentry")}"}`);
   }
 
-  if (rawItemId === "shield" && boolValue(snapshot, "shield-on")) {
+  if (supportsBannerPatterns(rawItemId) && boolValue(snapshot, "shield-on")) {
     comps.push(`base_color="${stringValue(snapshot, "shield-base", "white")}"`);
     if (snapshot.shieldLayers.length) {
       const patterns = snapshot.shieldLayers.map((layer) => `{pattern:"minecraft:${layer.pattern}",color:"${layer.color}"}`);
@@ -307,11 +311,11 @@ export function getGivePreviewData(snapshot: GiveSnapshot) {
     sections.push({ label: "Отделка", value: `${trimMaterialNames.get(material) || material}, узор ${trimPatternNames.get(pattern) || pattern}` });
   }
 
-  if (rawItemId === "shield" && boolValue(snapshot, "shield-on")) {
+  if (supportsBannerPatterns(rawItemId) && boolValue(snapshot, "shield-on")) {
     const base = stringValue(snapshot, "shield-base", "white");
     const layers = snapshot.shieldLayers.map((layer, index) => `${index + 1}. ${bannerPatternNames.get(layer.pattern) || layer.pattern} (${dyeNames.get(layer.color) || layer.color})`);
     sections.push({
-      label: "Щит",
+      label: rawItemId === "shield" ? "Щит" : "Флаг",
       value: `${dyeNames.get(base) || base}${layers.length ? `; ${layers.join("; ")}` : ""}`,
       swatches: [dyeHexes.get(base) || base, ...snapshot.shieldLayers.map((layer) => dyeHexes.get(layer.color) || layer.color)],
     });

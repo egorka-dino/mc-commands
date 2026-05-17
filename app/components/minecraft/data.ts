@@ -105,6 +105,16 @@ export const GIVE_ITEM_GROUPS = [
   { name: "Щиты", items: [
     ["shield", "Щит"],
   ] },
+  { name: "Флаги", items: [
+    ["white_banner", "Белый флаг"], ["light_gray_banner", "Светло-серый флаг"],
+    ["gray_banner", "Серый флаг"], ["black_banner", "Чёрный флаг"],
+    ["brown_banner", "Коричневый флаг"], ["red_banner", "Красный флаг"],
+    ["orange_banner", "Оранжевый флаг"], ["yellow_banner", "Жёлтый флаг"],
+    ["lime_banner", "Лаймовый флаг"], ["green_banner", "Зелёный флаг"],
+    ["cyan_banner", "Бирюзовый флаг"], ["light_blue_banner", "Голубой флаг"],
+    ["blue_banner", "Синий флаг"], ["purple_banner", "Фиолетовый флаг"],
+    ["magenta_banner", "Пурпурный флаг"], ["pink_banner", "Розовый флаг"],
+  ] },
   { name: "Еда", items: [
     ["apple", "Яблоко"], ["golden_apple", "Золотое яблоко"], ["enchanted_golden_apple", "Зачарованное золотое яблоко"],
     ["bread", "Хлеб"], ["cooked_beef", "Стейк"], ["beef", "Сырая говядина"],
@@ -252,8 +262,8 @@ export const SUMMON_EQUIPMENT_SLOTS = [
   { key: "chest", label: "Нагрудник", items: ["netherite_chestplate", "diamond_chestplate", "iron_chestplate", "golden_chestplate", "chainmail_chestplate", "leather_chestplate", "elytra"] },
   { key: "legs", label: "Штаны", items: ["netherite_leggings", "diamond_leggings", "iron_leggings", "golden_leggings", "chainmail_leggings", "leather_leggings"] },
   { key: "feet", label: "Ботинки", items: ["netherite_boots", "diamond_boots", "iron_boots", "golden_boots", "chainmail_boots", "leather_boots"] },
-  { key: "mainhand", label: "Правая рука (оружие)", items: ["netherite_sword", "diamond_sword", "iron_sword", "golden_sword", "stone_sword", "wooden_sword", "netherite_axe", "diamond_axe", "iron_axe", "golden_axe", "stone_axe", "bow", "crossbow", "trident", "mace", "totem_of_undying", "shield", "stick", "blaze_rod", "nether_star", "ender_pearl", "snowball", "egg", "fire_charge"] },
-  { key: "offhand", label: "Левая рука", items: ["totem_of_undying", "shield", "bow", "crossbow", "torch", "arrow", "spectral_arrow", "firework_rocket", "glow_berries", "nether_star", "map"] },
+  { key: "mainhand", label: "Правая рука (оружие)", items: ["netherite_sword", "diamond_sword", "iron_sword", "golden_sword", "stone_sword", "wooden_sword", "netherite_axe", "diamond_axe", "iron_axe", "golden_axe", "stone_axe", "bow", "crossbow", "trident", "mace", "totem_of_undying", "shield", "white_banner", "black_banner", "red_banner", "blue_banner", "green_banner", "yellow_banner", "stick", "blaze_rod", "nether_star", "ender_pearl", "snowball", "egg", "fire_charge"] },
+  { key: "offhand", label: "Левая рука", items: ["totem_of_undying", "shield", "white_banner", "black_banner", "red_banner", "blue_banner", "green_banner", "yellow_banner", "bow", "crossbow", "torch", "arrow", "spectral_arrow", "firework_rocket", "glow_berries", "nether_star", "map"] },
 ] as const;
 
 export const FOOD_ITEMS = new Set<string>([
@@ -414,6 +424,10 @@ export function canHaveTrim(itemId: string) {
 
 export function isShield(itemId: string) {
   return itemId === "shield";
+}
+
+export function supportsBannerPatterns(itemId: string) {
+  return itemId === "shield" || itemId.endsWith("_banner");
 }
 
 export function isFireball(typeId: string) {

@@ -42,7 +42,7 @@ export {
   ENCHANTS,
   enchantsForItem,
   isFireball,
-  isShield,
+  supportsBannerPatterns,
   ITEM_NAMES,
   MOB_GROUPS,
   NAME_COLORS,
