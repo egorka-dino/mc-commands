@@ -28,17 +28,19 @@
     position: sticky;
     top: 0;
     z-index: 50;
-    display: grid;
-    grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr);
+    display: flex;
     gap: 16px;
     align-items: center;
+    justify-content: space-between;
+    min-height: 52px;
     padding: 10px 18px;
     border-bottom: 2px solid var(--border);
     background: rgba(26, 29, 34, 0.96);
     backdrop-filter: blur(8px);
   }
   .site-brand {
-    justify-self: start;
+    position: relative;
+    z-index: 2;
     color: var(--accent);
     font-family: 'Press Start 2P', monospace;
     font-size: 11px;
@@ -48,7 +50,10 @@
   }
   .site-brand:hover { color: var(--accent-2); }
   .site-nav-links {
-    justify-self: center;
+    position: absolute;
+    left: 50%;
+    z-index: 1;
+    transform: translateX(-50%);
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
@@ -76,8 +81,9 @@
     color: var(--text);
   }
   .site-topbar .auth-corner {
+    z-index: 2;
     position: static;
-    justify-self: end;
+    margin-left: auto;
     width: min(360px, 32vw);
     max-width: none;
   }
@@ -942,12 +948,13 @@
 
   @media (max-width: 600px) {
     .site-topbar {
-      grid-template-columns: 1fr;
+      flex-direction: column;
       gap: 8px;
-      justify-items: center;
       padding: 10px 12px;
     }
     .site-nav-links {
+      position: static;
+      transform: none;
       width: 100%;
       justify-content: center;
     }
@@ -959,9 +966,9 @@
     .site-topbar .auth-corner {
       position: static;
       justify-content: center;
-      justify-self: center;
       width: auto;
       max-width: none;
+      margin-left: 0;
       margin-top: 0;
     }
     header h1 { font-size: 13px; }
