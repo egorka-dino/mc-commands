@@ -1,9 +1,10 @@
 "use client";
 
-import { useClerk } from "@clerk/nextjs";
+import { ClerkProvider, useClerk } from "@clerk/nextjs";
 import { useEffect } from "react";
+import { clerkLocalization } from "../components/clerk-localization";
 
-export default function SignOutPage() {
+function SignOutAction() {
   const { signOut } = useClerk();
 
   useEffect(() => {
@@ -14,4 +15,12 @@ export default function SignOutPage() {
   }, [signOut]);
 
   return <main className="auth-page">Выходим...</main>;
+}
+
+export default function SignOutPage() {
+  return (
+    <ClerkProvider localization={clerkLocalization}>
+      <SignOutAction />
+    </ClerkProvider>
+  );
 }

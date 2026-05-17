@@ -1,5 +1,6 @@
-import { ClerkProvider, SignUp } from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
 import { clerkLocalization } from "../../components/clerk-localization";
+import { AuthCompleteClient } from "./AuthCompleteClient";
 
 export const dynamic = "force-dynamic";
 
@@ -17,22 +18,13 @@ function getSafeRedirectUrl(value: string | string[] | undefined) {
   return rawValue;
 }
 
-export default async function SignUpPage({ searchParams }: Props) {
+export default async function AuthCompletePage({ searchParams }: Props) {
   const params = await searchParams;
   const redirectUrl = getSafeRedirectUrl(params?.redirect_url);
-  const completeUrl = `/auth/complete?redirect_url=${encodeURIComponent(redirectUrl)}`;
 
   return (
     <ClerkProvider localization={clerkLocalization}>
-      <main className="auth-page">
-        <SignUp
-          routing="path"
-          path="/sign-up"
-          fallbackRedirectUrl={completeUrl}
-          forceRedirectUrl={completeUrl}
-          oauthFlow="redirect"
-        />
-      </main>
+      <AuthCompleteClient redirectUrl={redirectUrl} />
     </ClerkProvider>
   );
 }

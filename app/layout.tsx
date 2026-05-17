@@ -1,11 +1,6 @@
-import { ClerkProvider } from "@clerk/nextjs";
 import type React from "react";
 import "../style.css";
 import "./globals.css";
-
-const clerkLocalization = {
-  socialButtonsBlockButton: "Войти через портал",
-};
 
 export default function RootLayout({
   children,
@@ -14,9 +9,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body>
-        <ClerkProvider localization={clerkLocalization}>{children}</ClerkProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

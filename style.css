@@ -52,6 +52,10 @@
     font-size: 12px;
   }
   .auth-text { line-height: 1.35; }
+  .auth-corner-loading {
+    min-width: 114px;
+    min-height: 28px;
+  }
   .auth-user {
     display: inline-flex;
     align-items: center;
