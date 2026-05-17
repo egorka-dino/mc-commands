@@ -1,4 +1,15 @@
-import { canHaveTrim, FOOD_ITEMS, POTIONS } from "./data";
+import {
+  ALL_ITEMS,
+  BANNER_PATTERNS,
+  canHaveTrim,
+  DYE_COLORS,
+  EFFECTS,
+  ENCHANTS,
+  FOOD_ITEMS,
+  POTIONS,
+  TRIM_MATERIALS,
+  TRIM_PATTERNS,
+} from "./data";
 
 export type GiveFieldValue = string | boolean | number;
 
@@ -86,6 +97,24 @@ function boolValue(snapshot: GiveSnapshot, field: string) {
 function numberValue(snapshot: GiveSnapshot, field: string, fallback: number) {
   const value = Number.parseFloat(stringValue(snapshot, field));
   return Number.isFinite(value) ? value : fallback;
+}
+
+const enchantNames = new Map<string, string>(Object.values(ENCHANTS).flat().map((enchant) => [enchant.id, enchant.name]));
+const effectNames = new Map<string, string>(EFFECTS.map(([id, name]) => [id, name]));
+const potionNames = new Map<string, string>(POTIONS.map(([id, name]) => [id, name]));
+const trimMaterialNames = new Map<string, string>(TRIM_MATERIALS.map(([id, name]) => [id, name]));
+const trimPatternNames = new Map<string, string>(TRIM_PATTERNS.map(([id, name]) => [id, name]));
+const dyeNames = new Map<string, string>(DYE_COLORS.map(([id, name]) => [id, name]));
+const dyeHexes = new Map<string, string>(DYE_COLORS.map(([id, , hex]) => [id, hex]));
+const bannerPatternNames = new Map<string, string>(BANNER_PATTERNS.map(([id, name]) => [id, name]));
+
+function romanLevel(level: number) {
+  const romans = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+  return romans[level - 1] || String(level);
+}
+
+function effectSummary(name: string, amp: number, duration: number, suffix = "") {
+  return `${effectNames.get(name) || name} ${romanLevel(amp + 1)} на ${duration} тиков${suffix}`;
 }
 
 export function getGiveTarget(snapshot: GiveSnapshot) {
@@ -223,4 +252,122 @@ export function buildGiveCommand(snapshot: GiveSnapshot) {
   const make = (nextTarget: string) => `/give ${nextTarget} minecraft:${itemId}${components} ${count}`;
   const command = make(target);
   return target === "@s" && command.length > 256 ? make("@p") : command;
+}
+
+export function getGivePreviewData(snapshot: GiveSnapshot) {
+  const rawItemId = snapshot.itemId;
+  const itemId = isPotion(rawItemId) ? snapshot.potionType || "potion" : rawItemId;
+  const itemName = ALL_ITEMS[rawItemId] || ALL_ITEMS[itemId] || rawItemId || "Предмет";
+  const customName = stringValue(snapshot, "name").trim();
+  const count = Math.max(1, Math.min(64, Number.parseInt(snapshot.count, 10) || 1));
+  const target = getGiveTarget(snapshot);
+  const nameStyle = [
+    stringValue(snapshot, "name-color") ? `цвет: ${stringValue(snapshot, "name-color")}` : "",
+    boolValue(snapshot, "name-bold") ? "жирное" : "",
+    boolValue(snapshot, "name-italic") ? "курсив" : "",
+  ].filter(Boolean);
+
+  const lore: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const line = stringValue(snapshot, `lore-${i}`).trim();
+    if (!line) continue;
+    const color = stringValue(snapshot, `lore-color-${i}`);
+    lore.push(color ? `${line} (${color})` : line);
+  }
+
+  const enchantments = Object.entries(snapshot.fields)
+    .filter(([key, value]) => key.startsWith("ench-") && (value === true || value === "true"))
+    .map(([key]) => {
+      const enchId = key.slice("ench-".length);
+      const level = Math.max(1, Number.parseInt(stringValue(snapshot, `enchlvl-${enchId}`, "1"), 10) || 1);
+      return `${enchantNames.get(enchId) || enchId} ${romanLevel(level)}`;
+    });
+
+  const chips = [`${count} шт.`, `цель: ${target}`];
+  const sections: Array<{ label: string; value: string; swatches?: string[] }> = [];
+
+  if (isPotion(rawItemId)) {
+    const potionTypeName = {
+      potion: "обычное",
+      splash_potion: "бросаемое",
+      lingering_potion: "длительное",
+      tipped_arrow: "зачарованная стрела",
+    }[snapshot.potionType || "potion"] || snapshot.potionType || "обычное";
+    const modifier = snapshot.potionModifier === "long" ? "продлённое" : snapshot.potionModifier === "strong" ? "усиленное II" : "обычное";
+    sections.push({ label: "Зелье", value: `${potionNames.get(rawItemId.split(":")[1]) || rawItemId.split(":")[1]} — ${potionTypeName}, ${modifier}` });
+  }
+
+  if (rawItemId.startsWith("leather_") && boolValue(snapshot, "dye-on")) {
+    sections.push({ label: "Окраска", value: stringValue(snapshot, "dye-color", "#a06540"), swatches: [stringValue(snapshot, "dye-color", "#a06540")] });
+  }
+
+  if (canHaveTrim(rawItemId) && boolValue(snapshot, "trim-on")) {
+    const material = stringValue(snapshot, "trim-mat", "quartz");
+    const pattern = stringValue(snapshot, "trim-pat", "sentry");
+    sections.push({ label: "Отделка", value: `${trimMaterialNames.get(material) || material}, узор ${trimPatternNames.get(pattern) || pattern}` });
+  }
+
+  if (rawItemId === "shield" && boolValue(snapshot, "shield-on")) {
+    const base = stringValue(snapshot, "shield-base", "white");
+    const layers = snapshot.shieldLayers.map((layer, index) => `${index + 1}. ${bannerPatternNames.get(layer.pattern) || layer.pattern} (${dyeNames.get(layer.color) || layer.color})`);
+    sections.push({
+      label: "Щит",
+      value: `${dyeNames.get(base) || base}${layers.length ? `; ${layers.join("; ")}` : ""}`,
+      swatches: [dyeHexes.get(base) || base, ...snapshot.shieldLayers.map((layer) => dyeHexes.get(layer.color) || layer.color)],
+    });
+  }
+
+  if (FOOD_ITEMS.has(rawItemId)) {
+    const nutrition = Math.trunc(numberValue(snapshot, "food-nutrition", 0));
+    const saturation = numberValue(snapshot, "food-saturation", 0);
+    const foodEffects: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      if (!boolValue(snapshot, `food-eff-on-${i}`)) continue;
+      const eff = stringValue(snapshot, `food-eff-${i}`);
+      if (!eff) continue;
+      const amp = Math.trunc(numberValue(snapshot, `food-eff-amp-${i}`, 0));
+      const dur = Math.trunc(numberValue(snapshot, `food-eff-dur-${i}`, 200));
+      const prob = numberValue(snapshot, `food-eff-prob-${i}`, 1);
+      foodEffects.push(effectSummary(eff, amp, dur, prob < 1 ? `, шанс ${Math.round(prob * 100)}%` : ""));
+    }
+    sections.push({ label: "Еда", value: `питательность ${nutrition}, насыщение ${saturation.toFixed(1)}${boolValue(snapshot, "food-always-eat") ? ", можно есть сытым" : ""}` });
+    if (foodEffects.length) sections.push({ label: "После еды", value: foodEffects.join("; ") });
+  }
+
+  if (boolValue(snapshot, "totem-on")) {
+    const totemEffects: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      if (!boolValue(snapshot, `totem-eff-on-${i}`)) continue;
+      const eff = stringValue(snapshot, `totem-eff-${i}`);
+      if (!eff) continue;
+      const amp = Math.trunc(numberValue(snapshot, `totem-eff-amp-${i}`, 0));
+      const dur = Math.trunc(numberValue(snapshot, `totem-eff-dur-${i}`, 200));
+      totemEffects.push(effectSummary(eff, amp, dur));
+    }
+    sections.push({ label: "Тотем", value: totemEffects.length ? totemEffects.join("; ") : "срабатывает как тотем бессмертия" });
+  }
+
+  if (rawItemId === "firework_rocket") {
+    const duration = stringValue(snapshot, "fw-duration", "1");
+    const explosions = snapshot.explosions.map((exp, index) => {
+      const flags = [exp.trail ? "след" : "", exp.twinkle ? "мерцание" : ""].filter(Boolean);
+      return `взрыв ${index + 1}: ${exp.shape}${flags.length ? ` (${flags.join(", ")})` : ""}`;
+    });
+    sections.push({
+      label: "Фейерверк",
+      value: `полёт ${duration}${explosions.length ? `; ${explosions.join("; ")}` : ""}`,
+      swatches: snapshot.explosions.flatMap((exp) => [...exp.colors, ...exp.fadeColors]).slice(0, 10),
+    });
+  }
+
+  return {
+    itemId,
+    itemName,
+    customName,
+    nameStyle,
+    lore,
+    enchantments,
+    chips,
+    sections,
+  };
 }

@@ -21,6 +21,7 @@ import {
   type Explosion,
   type GiveFieldValue,
   type GiveSnapshot,
+  getGivePreviewData,
   isPotion,
   potionOptions,
   type ShieldLayer,
@@ -391,6 +392,11 @@ export function GiveEditor() {
         <span className="hint">Собрать случайный предмет с подходящим количеством, именем, лором, чарами и особыми компонентами.</span>
       </section>
 
+      <section className="panel preview-panel give-preview-panel">
+        <h2>Предпросмотр</h2>
+        <GivePreview snapshot={snapshot} />
+      </section>
+
       <section className="panel">
         <h2>Параметры предмета</h2>
         <div className="section">
@@ -488,6 +494,32 @@ function SelectField({ label, value, onChange, options, withId = false }: { labe
 
 function CheckField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return <label className="check-row"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /> {label}</label>;
+}
+
+function GivePreview({ snapshot }: { snapshot: GiveSnapshot }) {
+  const data = getGivePreviewData(snapshot);
+  return <div id="give-preview" className="preview-card give-preview-card">
+    <div className="give-preview-main">
+      <div className="give-preview-icon" aria-hidden="true">{data.itemName.slice(0, 2).toUpperCase()}</div>
+      <div>
+        <div className="preview-top"><span className="preview-role">Итоговый предмет</span></div>
+        <div className="preview-title">{data.customName || data.itemName}</div>
+        <div className="preview-type">{data.itemName} <code>{data.itemId}</code></div>
+      </div>
+    </div>
+    <div className="preview-chips">
+      {[...data.chips, ...data.nameStyle].map((item) => <span key={item}>{item}</span>)}
+    </div>
+    {data.lore.length ? <ul className="give-preview-lore">{data.lore.map((line, index) => <li key={`${line}-${index}`}>{line}</li>)}</ul> : null}
+    {data.enchantments.length ? <div className="preview-effects"><span>Чары:</span> {data.enchantments.join(", ")}</div> : null}
+    {data.sections.length ? <ul className="preview-gear give-preview-sections">
+      {data.sections.map((section) => <li key={section.label}>
+        <span>{section.label}</span>
+        <strong>{section.value}</strong>
+        {section.swatches?.length ? <em className="give-preview-swatches">{section.swatches.map((color, index) => <i key={`${section.label}-${color}-${index}`} style={{ background: color }} />)}</em> : null}
+      </li>)}
+    </ul> : <p className="preview-empty">Без дополнительных компонентов</p>}
+  </div>;
 }
 
 function ColorSwatches({ value, onChange }: { value: string; onChange: (value: string) => void }) {

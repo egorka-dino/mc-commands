@@ -680,6 +680,61 @@
     line-height: 1.45;
   }
   .preview-effects span { color: var(--accent-2); font-weight: 700; }
+  #give-preview {
+    display: grid;
+    gap: 10px;
+  }
+  .give-preview-card {
+    border-color: var(--accent-2);
+  }
+  .give-preview-main {
+    display: grid;
+    grid-template-columns: 58px 1fr;
+    gap: 12px;
+    align-items: center;
+  }
+  .give-preview-icon {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.14), transparent 46%),
+      var(--panel-3);
+    color: var(--accent-2);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    text-shadow: 2px 2px 0 #000;
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,0.22);
+  }
+  .give-preview-lore {
+    list-style: none;
+    margin: 2px 0 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--accent-3);
+    background: rgba(0,0,0,0.18);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .give-preview-sections li {
+    grid-template-columns: 120px 1fr;
+  }
+  .give-preview-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+  }
+  .give-preview-swatches i {
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+  }
 
   .mob-picker { display: flex; flex-direction: column; gap: 4px; }
   .mob-picker .mob-search {
@@ -747,6 +802,8 @@
     .preview-relation { text-align: left; }
     .preview-gear li { grid-template-columns: 1fr; }
     .preview-gear li em { grid-column: 1; }
+    .give-preview-main { grid-template-columns: 1fr; }
+    .give-preview-icon { width: 52px; height: 52px; }
     .lore-row,
     .shield-layer-row,
     .give-effect-row,

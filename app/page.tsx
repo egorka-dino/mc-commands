@@ -4,6 +4,7 @@ const releases = [
   {
     date: "17 мая 2026",
     items: [
+      <>В <strong style={{ color: "var(--accent-2)" }}>/give</strong> добавлен <strong>предпросмотр предмета</strong>: до копирования команды видно имя, количество, цель, лор, чары и особые компоненты.</>,
       <>В числовые поля <strong style={{ color: "var(--accent)" }}>/summon</strong> и <strong style={{ color: "var(--accent-2)" }}>/give</strong> вернулись жёсткие лимиты: уровни чар, количество, эффекты и шансы сразу исправляются до допустимых значений.</>,
       <>В <strong style={{ color: "var(--accent)" }}>/summon</strong> и <strong style={{ color: "var(--accent-2)" }}>/give</strong> появился <strong>AI-помощник «Собрать словами»</strong>: опиши по-человечески моба или предмет, а сайт заполнит подходящие поля редактора.</>,
     ],
