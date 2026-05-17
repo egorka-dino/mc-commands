@@ -34,6 +34,7 @@
   - Production start после build: `npm run start`.
   - Для auth/db использовать `.env.local`; пример переменных хранится в `.env.example`.
   - Локальные переменные из Vercel можно подтянуть командой `npx vercel@latest env pull .env.local`.
+  - Если изменения заметно затрагивают пользовательский интерфейс, сразу делать Vercel preview deployment (`npx vercel deploy --yes`) и проверять preview URL, даже если локальная проверка проходит.
   - Если проверка функциональности зависит от Clerk/Neon или локально auth/db мешают нормальной валидации, сразу делать Vercel preview deployment (`npx vercel deploy --yes`) и проверять preview URL.
 
   ## Ключевые факты
