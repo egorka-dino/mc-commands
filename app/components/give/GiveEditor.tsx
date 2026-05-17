@@ -392,11 +392,6 @@ export function GiveEditor() {
         <span className="hint">Собрать случайный предмет с подходящим количеством, именем, лором, чарами и особыми компонентами.</span>
       </section>
 
-      <section className="panel preview-panel give-preview-panel">
-        <h2>Предпросмотр</h2>
-        <GivePreview snapshot={snapshot} />
-      </section>
-
       <section className="panel">
         <h2>Параметры предмета</h2>
         <div className="section">
@@ -461,6 +456,11 @@ export function GiveEditor() {
         <TotemSection field={field} checked={checked} setField={setField} />
         {selectedItem === "firework_rocket" ? <FireworkSection snapshot={snapshot} patch={patch} field={field} setField={setField} /> : null}
         {isPotion(selectedItem) ? <PotionSection snapshot={snapshot} patch={patch} mods={potionMods} /> : null}
+      </section>
+
+      <section className="panel preview-panel give-preview-panel">
+        <h2>Предпросмотр</h2>
+        <GivePreview snapshot={snapshot} />
       </section>
 
       <section className="panel output-panel">
