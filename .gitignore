@@ -1,5 +1,6 @@
 .worktrees/
 .vercel/
+.DS_Store
 node_modules/
 .next/
 out/
