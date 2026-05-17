@@ -1,9 +1,8 @@
-import { AuthCorner } from "./components/AuthCorner";
-
 const releases = [
   {
     date: "17 мая 2026",
     items: [
+      <>Навигация переехала в <strong>верхнюю панель</strong>: с любой страницы можно быстро открыть <strong>Командный хаб</strong>, <strong style={{ color: "var(--accent)" }}>/summon</strong> и <strong style={{ color: "var(--accent-2)" }}>/give</strong>.</>,
       <>В <strong style={{ color: "var(--accent)" }}>/summon</strong> и <strong style={{ color: "var(--accent-2)" }}>/give</strong> для флагов добавлены те же <strong>узоры и слои</strong>, что и для щитов: базовый цвет, до 16 слоёв и все vanilla-узоры.</>,
       <>AI-помощник <strong>«Собрать словами»</strong> теперь возвращает компактный план без лишних пустых полей, поэтому описания мобов и предметов должны применяться быстрее.</>,
       <>В <strong style={{ color: "var(--accent)" }}>/summon</strong> и <strong style={{ color: "var(--accent-2)" }}>/give</strong> уровни зачарований теперь можно поднимать до <strong>255</strong>, а обычный ванильный максимум показывается только как подсказка.</>,
@@ -48,7 +47,6 @@ export default function HomePage() {
       <header>
         <h1>MC-COMMANDS</h1>
         <p>Генераторы команд для Minecraft Java Edition 1.21.5+</p>
-        <AuthCorner currentPath="/" />
       </header>
 
       <main>

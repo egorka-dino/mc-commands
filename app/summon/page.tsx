@@ -1,4 +1,3 @@
-import { AuthCorner } from "../components/AuthCorner";
 import { SummonEditor } from "../components/summon/SummonEditor";
 import type { SummonTemplateLike } from "../components/summon/data";
 import { getDatabaseUrlStatus } from "../server/db";
@@ -20,10 +19,8 @@ export default async function SummonPage() {
   return (
     <>
       <header>
-        <a href="/" className="nav-back">mc-commands</a>
         <h1>ГЕНЕРАТОР /SUMMON</h1>
         <p>Minecraft Java Edition 1.21.5 и новее · React</p>
-        <AuthCorner currentPath="/summon" />
       </header>
       <main className="container">
         <SummonEditor templates={templates} />
