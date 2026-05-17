@@ -53,9 +53,11 @@ type AiPlan = {
   operations: AiOperation[];
   notes: string[];
 };
+type PromptCacheRetention = "in_memory" | "24h";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-4.1-mini";
+const PROMPT_CACHE_KEY_PREFIX = "mc-commands-ai-command";
 const maxMobs = 6;
 const validMobs = new Set(Object.keys(ALL_MOBS));
 const validGiveItems = new Set<string>(Object.keys(ALL_ITEMS));
@@ -159,6 +161,8 @@ async function requestAiPlan(apiKey: string, mode: Mode, prompt: string): Promis
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
       max_output_tokens: 2200,
+      prompt_cache_key: `${PROMPT_CACHE_KEY_PREFIX}-${mode}`,
+      ...promptCacheRetentionOptions(),
       input: [
         { role: "system", content: buildSystemPrompt(mode) },
         { role: "user", content: prompt },
@@ -183,6 +187,12 @@ async function requestAiPlan(apiKey: string, mode: Mode, prompt: string): Promis
   const text = extractOutputText(json);
   if (!text) throw new Error("AI-помощник вернул пустой ответ.");
   return coercePlan(JSON.parse(text));
+}
+
+function promptCacheRetentionOptions(): { prompt_cache_retention?: PromptCacheRetention } {
+  const retention = process.env.OPENAI_PROMPT_CACHE_RETENTION;
+  if (retention === "in_memory" || retention === "24h") return { prompt_cache_retention: retention };
+  return {};
 }
 
 function buildSystemPrompt(mode: Mode) {
