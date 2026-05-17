@@ -34,6 +34,7 @@ type Favorite = SummonSnapshot & {
 
 type Props = {
   adminMode?: boolean;
+  showAiAssistant?: boolean;
   initialSnapshot?: SummonSnapshot;
   templates?: SummonTemplateLike[];
   onSnapshotChange?: (snapshot: SummonSnapshot) => void;
@@ -188,7 +189,7 @@ function makeRandomSnapshot() {
   return snapshot;
 }
 
-export function SummonEditor({ adminMode = false, initialSnapshot, templates, onSnapshotChange }: Props) {
+export function SummonEditor({ adminMode = false, showAiAssistant = false, initialSnapshot, templates, onSnapshotChange }: Props) {
   const [snapshot, setSnapshot] = useState(() => normalizeSnapshot(initialSnapshot || toSnapshot(["zombie"])));
   const [coords, setCoords] = useState("~ ~ ~");
   const [presetId, setPresetId] = useState("");
@@ -199,6 +200,7 @@ export function SummonEditor({ adminMode = false, initialSnapshot, templates, on
   const [toast, setToast] = useState("");
   const command = useMemo(() => buildSummonCommand(snapshot, coords), [snapshot, coords]);
   const presets: SummonTemplateLike[] = templates || [];
+  const shouldShowAiAssistant = !adminMode || showAiAssistant;
 
   useEffect(() => {
     if (initialSnapshot) setSnapshot(normalizeSnapshot(initialSnapshot));
@@ -323,15 +325,15 @@ export function SummonEditor({ adminMode = false, initialSnapshot, templates, on
         </section>
       ) : null}
 
-      {!adminMode ? (
+      {shouldShowAiAssistant ? (
         <section className="panel ai-panel">
-          <h2>Собрать словами <span className="sub">AI-помощник</span></h2>
-          <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Например: зомби в незеритке с усталостью копания пятого уровня, мечом на остроту V и курицей-пассажиром" rows={3} />
+          <h2>{adminMode ? "Собрать шаблон словами" : "Собрать словами"} <span className="sub">AI-помощник</span></h2>
+          <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder={adminMode ? "Например: скелет-наездник на пауке, оба светятся, скелет с луком на силу V и шлемом из золота" : "Например: зомби в незеритке с усталостью копания пятого уровня, мечом на остроту V и курицей-пассажиром"} rows={3} />
           <div className="btn-row ai-actions">
             <button type="button" onClick={generateFromDescription} disabled={aiBusy}>{aiBusy ? "Думаю..." : "Понять описание"}</button>
             <button className="sec" type="button" onClick={() => setAiPrompt("")} disabled={aiBusy || !aiPrompt}>Очистить</button>
           </div>
-          <p className="hint">Модель получает списки мобов, предметов, эффектов, чар, слотов и правил этого генератора. Неизвестные ID сервер отбрасывает.</p>
+          <p className="hint">{adminMode ? "Помощник заполнит поля текущего шаблона. Метаданные шаблона — ID, название, категорию и описание — сохрани отдельно." : "Модель получает списки мобов, предметов, эффектов, чар, слотов и правил этого генератора. Неизвестные ID сервер отбрасывает."}</p>
           {aiNotes.length ? <ul className="ai-notes">{aiNotes.map((note, index) => <li key={`${note}-${index}`}>{note}</li>)}</ul> : null}
         </section>
       ) : null}

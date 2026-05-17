@@ -278,6 +278,7 @@ export function SummonTemplatesClient({ initialTemplates, databaseReady }: Props
         <div className="admin-summon-editor">
           <SummonEditor
             adminMode
+            showAiAssistant
             initialSnapshot={draft.snapshot}
             key={draft.id}
             onSnapshotChange={updateSnapshot}
