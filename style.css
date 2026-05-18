@@ -653,6 +653,31 @@
   }
   .random-panel .hint { margin-top: 0; }
 
+  .server-execute-panel {
+    border-color: var(--accent-3);
+  }
+  .server-execute-actions {
+    margin-top: 12px;
+  }
+  .server-execute-message {
+    margin: 10px 0 0;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: rgba(0,0,0,0.18);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .server-execute-message.success {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .server-execute-message.error {
+    border-color: var(--danger);
+    color: #ff8f8f;
+  }
+
   .output-panel { background: var(--code-bg); border-color: var(--accent); }
   .output-panel h2 { color: var(--accent); }
   #command-output {

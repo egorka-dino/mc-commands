@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ServerCommandExecutor } from "../ServerCommandExecutor";
 import {
   ALL_ITEMS,
   BANNER_PATTERNS,
@@ -479,6 +480,7 @@ export function GiveEditor() {
         </div>
         {longCommand ? <div className="warn">Команда длиннее 256 символов - используй командный блок: <code>/give @s command_block</code>{autoTarget ? ". Цель в команде автоматически заменена с @s на @p, чтобы командный блок выдал предмет ближайшему игроку." : ""}</div> : null}
       </section>
+      <ServerCommandExecutor mode="give" snapshot={snapshot} />
       <div id="toast" style={{ opacity: toast ? 1 : 0 }}>{toast}</div>
     </>
   );

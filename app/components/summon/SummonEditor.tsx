@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ServerCommandExecutor } from "../ServerCommandExecutor";
 import {
   ALL_MOBS,
   BANNER_PATTERNS,
@@ -370,6 +371,7 @@ export function SummonEditor({ adminMode = false, showAiAssistant = false, initi
           {command.length > 256 ? <div className="warn">Команда длиннее 256 символов — в чат не поместится. Используй командный блок.</div> : null}
         </section>
       ) : null}
+      {!adminMode ? <ServerCommandExecutor mode="summon" snapshot={snapshot} /> : null}
       <div id="toast" style={{ opacity: toast ? 1 : 0 }}>{toast}</div>
     </div>
   );

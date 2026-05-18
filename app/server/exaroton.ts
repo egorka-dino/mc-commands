@@ -73,6 +73,23 @@ export type ExarotonServersResult =
       fetchedAt: null;
     };
 
+export type ExarotonCommandResult =
+  | {
+      configured: true;
+      ok: true;
+      message: string;
+    }
+  | {
+      configured: true;
+      ok: false;
+      error: string;
+    }
+  | {
+      configured: false;
+      ok: false;
+      error: string;
+    };
+
 const EXAROTON_API_BASE_URL = "https://api.exaroton.com/v1";
 
 const STATUS_LABELS: Record<number, string> = {
@@ -90,12 +107,7 @@ const STATUS_LABELS: Record<number, string> = {
 };
 
 function getExarotonApiKey() {
-  return (
-    process.env.EXAROTON_API_KEY ||
-    process.env.EXAROTON_TOKEN ||
-    process.env.EXAROTON_API_TOKEN ||
-    ""
-  ).trim();
+  return (process.env.EXAROTON_API_KEY || "").trim();
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -222,6 +234,58 @@ export async function listExarotonServers(): Promise<ExarotonServersResult> {
       error: error instanceof Error ? error.message : "Не удалось получить серверы Exaroton",
       servers: [],
       fetchedAt,
+    };
+  }
+}
+
+export async function executeExarotonCommand(
+  serverId: string,
+  command: string,
+): Promise<ExarotonCommandResult> {
+  const token = getExarotonApiKey();
+  if (!token) {
+    return {
+      configured: false,
+      ok: false,
+      error: "EXAROTON_API_KEY не настроен",
+    };
+  }
+
+  try {
+    const response = await fetch(
+      `${EXAROTON_API_BASE_URL}/servers/${encodeURIComponent(serverId)}/command/`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ command }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+
+    const body = (await response.json().catch(() => null)) as ExarotonApiResponse<string> | null;
+
+    if (!response.ok || !body?.success) {
+      return {
+        configured: true,
+        ok: false,
+        error: body?.error || `Exaroton API вернул HTTP ${response.status}`,
+      };
+    }
+
+    return {
+      configured: true,
+      ok: true,
+      message: typeof body.data === "string" && body.data.trim() ? body.data : "Команда отправлена на сервер",
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      ok: false,
+      error: error instanceof Error ? error.message : "Не удалось выполнить команду через Exaroton",
     };
   }
 }
