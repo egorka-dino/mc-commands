@@ -8,7 +8,7 @@ export default async function ServersPage() {
   return (
     <>
       <header>
-        <h1>СЕРВЕРЫ</h1>
+        <h1>СЕРВЕРНАЯ</h1>
         <p>Minecraft-серверы сообщества, куда можно зайти поиграть</p>
       </header>
 
