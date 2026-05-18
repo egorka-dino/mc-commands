@@ -3,7 +3,7 @@ const releases = [
     date: "17 мая 2026",
     items: [
       <>Администраторы теперь могут выполнить сгенерированные команды прямо на сервере: в <strong style={{ color: "var(--accent)" }}>/summon</strong> моб появляется рядом с выбранным игроком, а в <strong style={{ color: "var(--accent-2)" }}>/give</strong> предмет выдаётся выбранному игроку через Exaroton.</>,
-      <>Появилась страница <strong>«Серверы»</strong> со списком Minecraft-серверов, которые администратор отметил как опубликованные.</>,
+      <>Появилась страница <strong>«Серверы»</strong>: там можно посмотреть адреса серверов сообщества, онлайн игроков, версии и выбрать, куда зайти поиграть.</>,
       <>Навигация переехала в <strong>верхнюю панель</strong>: с любой страницы можно быстро открыть <strong>Командный хаб</strong>, <strong style={{ color: "var(--accent)" }}>/summon</strong> и <strong style={{ color: "var(--accent-2)" }}>/give</strong>.</>,
       <>В <strong style={{ color: "var(--accent)" }}>/summon</strong> и <strong style={{ color: "var(--accent-2)" }}>/give</strong> для флагов добавлены те же <strong>узоры и слои</strong>, что и для щитов: базовый цвет, до 16 слоёв и все vanilla-узоры.</>,
       <>AI-помощник <strong>«Собрать словами»</strong> теперь возвращает компактный план без лишних пустых полей, поэтому описания мобов и предметов должны применяться быстрее.</>,
@@ -66,7 +66,7 @@ export default function HomePage() {
             </a>
             <a href="/servers" className="cmd-card servers">
               <div className="cmd-title">СЕРВЕРЫ</div>
-              <div className="cmd-desc">Открыть опубликованные Minecraft-серверы сообщества: адрес, статус, онлайн и версию</div>
+              <div className="cmd-desc">Открыть серверы сообщества: адрес, статус, онлайн и версию, чтобы выбрать, куда зайти поиграть</div>
               <span className="cmd-arrow">▶</span>
             </a>
           </div>

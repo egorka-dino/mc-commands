@@ -9,7 +9,7 @@ export default async function ServersPage() {
     <>
       <header>
         <h1>СЕРВЕРЫ</h1>
-        <p>Опубликованные Minecraft-серверы сообщества</p>
+        <p>Minecraft-серверы сообщества, куда можно зайти поиграть</p>
       </header>
 
       <main>
@@ -51,8 +51,8 @@ export default async function ServersPage() {
               </div>
             ) : (
               <p className="empty-state">
-                Пока нет опубликованных серверов. Загляни позже: администратор добавит сюда
-                серверы.
+                Пока нет доступных серверов. Загляни позже: здесь появятся серверы, куда можно
+                зайти поиграть.
               </p>
             )}
           </div>
