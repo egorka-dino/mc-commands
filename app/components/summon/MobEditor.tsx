@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+
+const EntityPreview = dynamic(() => import("./EntityPreview"), { ssr: false, loading: () => <p className="hint">Загрузка 3D-просмотра…</p> });
 import { ServerCommandExecutor } from "../ServerCommandExecutor";
 import {
   ALL_MOBS,
@@ -193,6 +196,7 @@ function makeRandomSnapshot() {
 
 export function MobEditor({ adminMode = false, showAiAssistant = false, initialSnapshot, templates, onSnapshotChange }: Props) {
   const [snapshot, setSnapshot] = useState(() => normalizeSnapshot(initialSnapshot || toSnapshot(["zombie"])));
+  const [show3d, setShow3d] = useState(false);
   const [coords, setCoords] = useState("~ ~ ~");
   const [presetId, setPresetId] = useState("");
   const [aiPrompt, setAiPrompt] = useState("");
@@ -360,7 +364,15 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
         <div className="passenger-controls"><button className="info" type="button" onClick={() => updateSnapshot({ mobOrder: [...snapshot.mobOrder, { mobType: "zombie" }], fields: { ...snapshot.fields, [fieldKey(snapshot.mobOrder.length, "mob")]: "zombie", [fieldKey(snapshot.mobOrder.length, "persist")]: true, [fieldKey(snapshot.mobOrder.length, "name-visible")]: true } })}>+ Добавить пассажира</button><span className="hint">Первый пассажир сидит на основном, второй на первом, и т.д.</span></div>
       </section>
 
-      <section className="panel preview-panel"><h2>Предпросмотр</h2><Preview snapshot={snapshot} /></section>
+      <section className="panel preview-panel"><h2>Предпросмотр</h2>
+        <div className="entity-preview-controls"><button type="button" className="small" onClick={() => setShow3d(value => !value)}>{show3d ? "Скрыть 3D" : "Показать 3D"}</button>
+        <button type="button" className="small" onClick={() => {
+          const example = toSnapshot(["horse", "zombie", "skeleton"]);
+          Object.assign(example.fields, { "0-horse-coat": "4", "1-slot-head": "diamond_helmet", "1-slot-chest": "diamond_chestplate", "1-slot-legs": "diamond_leggings", "1-slot-feet": "diamond_boots", "1-slot-mainhand": "diamond_sword", "2-slot-mainhand": "bow" });
+          setSnapshot(normalizeSnapshot(example)); setShow3d(true);
+        }}>Загрузить пример в редактор</button></div>
+        {show3d ? <EntityPreview snapshot={snapshot} /> : <p className="hint">3D для пяти семейств мобов, брони и пассажиров. Загружается по кнопке.</p>}
+        <Preview snapshot={snapshot} /></section>
 
       {!adminMode ? (
         <section className="panel output-panel">
@@ -405,6 +417,8 @@ function MobCard({ index, snapshot, updateField, removeMob }: { index: number; s
         <label><span className="lab">Имя</span><input type="text" {...input("name")} placeholder="например: Босс" /></label>
         <label><span className="lab">Цвет имени</span><select {...input("name-color")}>{NAME_COLORS.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select></label>
       </div><div className="grid-3" style={{ marginTop: 8 }}><label className="check-row"><input type="checkbox" {...check("name-bold")} /> Жирное</label><label className="check-row"><input type="checkbox" {...check("name-italic")} /> Курсив</label><label className="check-row"><input type="checkbox" {...check("name-visible")} /> Всегда видно</label></div></div>
+
+      {mobType === "horse" ? <div className="section"><label><span className="lab">Окрас лошади</span><select {...input("horse-coat")}><option value="">По умолчанию</option>{["Белая", "Кремовая", "Рыжая", "Гнедая", "Вороная", "Серая", "Тёмно-гнедая"].map((name, i) => <option value={String(i)} key={i}>{name}</option>)}</select></label></div> : null}
 
       <div className="section"><div className="section-title">2. Характеристики</div><div className="grid-3">{[
         ["health", "HP (1-1024)", 1, 1024],

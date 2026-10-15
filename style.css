@@ -1213,3 +1213,13 @@
       grid-template-columns: 1fr;
     }
   }
+
+/* On-demand Minecraft model viewer; text preview remains available below it. */
+.entity-preview { margin: 14px 0 22px; }
+.entity-preview-canvas { width: 100%; height: 380px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: radial-gradient(ellipse at center, #27374a, #111923); }
+.entity-preview-canvas canvas { display: block; touch-action: none; }
+.entity-preview-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+@media (max-width: 600px) { .entity-preview-canvas { height: 320px; } }
+.preview-panel, .entity-preview, .entity-preview-canvas { min-width: 0; max-width: 100%; }
+.entity-preview-canvas { position: relative; }
+.entity-preview-canvas canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }

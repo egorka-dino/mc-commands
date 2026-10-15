@@ -293,3 +293,17 @@ npm run start
 Если меняется техническое поведение приложения, API, админка, авторизация, БД, хранилища, интеграции или формат генерации команд, этот документ нужно обновить в той же задаче.
 
 Если изменение также влияет на публичный пользовательский сценарий, нужно обновить `docs/user-functionality.md`.
+
+## Ресурсы и 3D-предпросмотр сущностей
+
+Экспериментальный viewer находится в `app/components/summon/EntityPreview.tsx`, адаптер состояния — в `preview-scene.ts`. Он читает `SummonSnapshot` напрямую; текст команды не разбирается. Three.js и выбранные модели загружаются по кнопке, общая логика используется публичным редактором и админским редактором шаблонов. Текстовый preview сохранён.
+
+Подготовительная Java-программа `tools/entity-export/ExportModels.java` вызывает vanilla 26.1.2 `LayerDefinitions.createRoots()/bakeRoot()/setupAnim()/translateToHand()`. Python-сценарий `export.py` собирает JSON/PNG в `public/entity-preview/26.1.2/`, записывает source JAR SHA256 и hashes файлов. Java 25 нужна только для подготовки; в Next/Vercel Java не запускается. Формат mesh JSON содержит root/children с parent-relative pivot, ZYX radians rotation, scale, полигонные вершины в пикселях, normalized UV и normals; mirror и armor expansion уже применены baker. Viewer переводит координаты в блоки и использует статические снимки поз.
+
+Поле snapshot `N-horse-coat` содержит индекс 0–6; генератор пишет `Variant:<index>` только для horse и корректного целого значения. Геометрия всех окрасов общая. Данные автоматически сохраняются существующими механизмами snapshots/favorites/templates.
+
+Поддержка пяти семейств не означает полную поддержку их слоёв/эффектов. Срез применяет гуманоидную броню и поддержанные held items только к zombie/skeleton. Для villager head layer пока fallback; horse/ravager обычные equipment slots не визуализируют. Невидимость скрывает тело, scale масштабирует сцену; игровое освещение, анимации, trims, glint, outlines и частицы отсутствуют. Mount offsets приблизительные и явно отмечены в интерфейсе.
+
+`--pack ZIP` разрешает только статические texture replacements для уже выбранных vanilla PNG с прежним aspect ratio. Ресурс-паки не меняют геометрию/профессии/модельные определения; CEM/EMF и shader packs не поддержаны. Runtime загрузки пакетов посетителем нет.
+
+Команды проверки: `npm run test:entity-preview`, `python3 tools/entity-export/verify.py`, `npm run build`. Полное исследование Asset Renderer, воспроизведение, матрица покрытия и следующий этап: [docs/entity-preview/research.md](entity-preview/research.md).

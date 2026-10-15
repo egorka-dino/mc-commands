@@ -5,14 +5,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:entity-preview": "tsc app/components/summon/data.ts app/components/summon/engine.ts app/components/summon/preview-scene.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2020 --skipLibCheck --esModuleInterop && node --test tests/entity-preview.test.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.5",
     "@neondatabase/serverless": "^1.1.0",
     "next": "16.2.6",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "three": "^0.180.0"
   },
   "overrides": {
     "postcss": "8.5.14"
@@ -21,6 +23,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.180.0",
     "typescript": "^5.8.0"
   }
 }

@@ -56,6 +56,11 @@ export function buildNBTPartsFor(snapshot: SummonSnapshot, index: number) {
     if (asBool(read(snapshot, index, "name-visible"))) parts.push("CustomNameVisible:1b");
   }
 
+  if (mobType === "horse" && hasValue(read(snapshot, index, "horse-coat"))) {
+    const coat = Number(read(snapshot, index, "horse-coat"));
+    if (Number.isInteger(coat) && coat >= 0 && coat <= 6) parts.push(`Variant:${coat}`);
+  }
+
   if (asBool(read(snapshot, index, "baby"))) parts.push("IsBaby:1b");
   if (asBool(read(snapshot, index, "invul"))) parts.push("Invulnerable:1b");
   if (asBool(read(snapshot, index, "invisible"))) parts.push("Invisible:1b");
@@ -194,6 +199,12 @@ export function getPreviewData(snapshot: SummonSnapshot, index: number) {
   ].map(([label, field]) => [label, asString(read(snapshot, index, field))] as const)
     .filter(([, value]) => value)
     .map(([label, value]) => `${label}: ${value}`);
+
+  if (mobType === "horse" && hasValue(read(snapshot, index, "horse-coat"))) {
+    const coats = ["Белая", "Кремовая", "Рыжая", "Гнедая", "Вороная", "Серая", "Тёмно-гнедая"];
+    const coat = Number(read(snapshot, index, "horse-coat"));
+    if (Number.isInteger(coat) && coats[coat]) stats.push(`Окрас: ${coats[coat]}`);
+  }
 
   const gear = SLOTS.flatMap((slot) => {
     const itemId = asString(read(snapshot, index, `slot-${slot.key}`));
