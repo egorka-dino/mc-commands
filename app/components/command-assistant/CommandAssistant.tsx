@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { createVoiceSession, getRecognitionConstructor } from "../summon/voice-input";
+import { createVoiceSession, getRecognitionConstructor } from "./voice-input";
 import { useCommandAssistant } from "./useCommandAssistant";
 
 type Props<T> = {
@@ -38,7 +38,6 @@ export function CommandAssistant<T>({ mode, snapshot, onApply, normalize, adminM
   const voiceRef = useRef<ReturnType<typeof createVoiceSession> | null>(null);
   const voiceBusy = voiceStatus !== "idle";
   useEffect(() => {
-    if (mode !== "summon") return;
     setVoiceSupported(Boolean(getRecognitionConstructor()));
     const stopOnLeave = () => voiceRef.current?.cancel();
     window.addEventListener("pagehide", stopOnLeave);
@@ -46,7 +45,7 @@ export function CommandAssistant<T>({ mode, snapshot, onApply, normalize, adminM
       window.removeEventListener("pagehide", stopOnLeave);
       voiceRef.current?.dispose();
     };
-  }, [mode]);
+  }, []);
   function startVoiceInput() {
     if (ai.busy || voiceBusy) return;
     const Constructor = getRecognitionConstructor();
@@ -66,7 +65,7 @@ export function CommandAssistant<T>({ mode, snapshot, onApply, normalize, adminM
     </div>)}</div> : null}
     <label htmlFor={inputId} className="lab">Что собрать или изменить?</label>
     <textarea id={inputId} value={ai.prompt} onChange={event => ai.setPrompt(event.target.value)} disabled={ai.busy || voiceBusy} maxLength={1500} placeholder={ai.history.length ? label.followUp : label.example} rows={3} />
-    {mode === "summon" ? <>
+    <>
       <div className="btn-row voice-actions">
         <button type="button" className="sec" onClick={startVoiceInput} disabled={ai.busy || voiceBusy || voiceSupported !== true || ai.prompt.length >= 1500}>
           <svg aria-hidden="true" width="16" height="18" viewBox="0 0 16 20" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="5" y="1" width="6" height="11" rx="3" /><path d="M2 8v2a6 6 0 0 0 12 0V8M8 16v3M5 19h6" /></svg>
@@ -82,7 +81,7 @@ export function CommandAssistant<T>({ mode, snapshot, onApply, normalize, adminM
         : voiceSupported === false ? "Голосовой ввод недоступен в этом браузере. Введи описание текстом."
         : "Можно надиктовать описание, проверить текст и применить его. Распознавание может передавать аудио сервису браузера."}</p>
       {voiceMessage ? <p className="warn" role="alert">{voiceMessage}</p> : null}
-    </> : null}
+    </>
     <div className="btn-row ai-actions">
       <button type="button" onClick={() => ai.generate()} disabled={ai.busy || voiceBusy || ai.prompt.trim().length < 3}>{ai.busy ? "Думаю..." : "Применить к текущему"}</button>
       <button className="sec" type="button" onClick={() => ai.generate(true)} disabled={ai.busy || voiceBusy || ai.prompt.trim().length < 3}>Собрать заново</button>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createVoiceSession } from '../.test-build/components/summon/voice-input.js';
+import { createVoiceSession } from '../.test-build/components/command-assistant/voice-input.js';
 
 function setup(original = 'Зомби', limit = 1500) {
   let engine;
