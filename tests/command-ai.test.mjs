@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { defaultGiveSnapshot, buildGiveCommand, getGivePreviewData } from '../.test-build/components/give/engine.js';
-import { buildNBTPartsFor } from '../.test-build/components/summon/engine.js';
+import { buildNBTPartsFor, buildSummonCommand } from '../.test-build/components/summon/engine.js';
 import { POST } from '../.test-build/api/ai/command/route.js';
 
 process.env.OPENAI_API_KEY = 'test-key';
@@ -73,7 +73,7 @@ test('rejects malformed state and prompts; invalid operations do not create pass
     assert.equal((await call({ mode: 'summon', prompt: 'Добавь щит', snapshot })).status, 400);
   }
   assert.equal((await call({ mode: 'summon', prompt: {} })).status, 400);
-  operations = [{ action: 'remove_mob', index: 0 }, { action: 'unknown', index: 5 }, { action: 'set_mob', index: -1, mobType: 'skeleton' }];
+  operations = [{ action: 'remove_mob', index: 6 }, { action: 'unknown', index: 5 }, { action: 'set_mob', index: -1, mobType: 'skeleton' }];
   const result = await call({ mode: 'summon', prompt: 'Измени моба', snapshot: initial });
   assert.deepEqual(result.snapshot.mobOrder, initial.mobOrder);
 });
@@ -278,4 +278,132 @@ test('give appends shield layers and recolors a layer without changing its patte
   operations = [{action:'set_item',itemId:'shield'},{action:'set_shield',color:'blue'}];
   const plain = await call({mode:'give',prompt:'Просто синий щит'});
   assert.doesNotMatch(buildGiveCommand(plain.snapshot),/banner_patterns/);
+});
+
+
+const rider = { mobOrder: [{ mobType: 'zombie' }, { mobType: 'chicken' }], fields: {
+  ...initial.fields, '0-slot-mainhand': 'diamond_sword', '0-count-mainhand': '2',
+  '0-drop-mainhand': '0.37', '0-ench-mainhand-sharpness': true, '0-enchlvl-mainhand-sharpness': '7',
+  '0-slot-chest': 'leather_chestplate', '0-dyeon-chest': true, '0-dye-chest': '#123abc',
+  '0-trimon-head': true, '0-trimmat-head': 'gold', '0-trimpat-head': 'sentry',
+  '0-slot-offhand': 'shield', '0-shieldon-offhand': true, '0-shieldbase-offhand': 'red',
+  '0-shieldpat-offhand-0': 'border', '0-shieldcolor-offhand-0': 'white',
+  '0-eff-strength': true, '0-effamp-strength': '2', '0-effdur-strength': '1200',
+  '0-scale': '1.3', '0-glow': true, '0-future-setting': 'preserved',
+} };
+const fieldsAt = (snapshot, index) => Object.fromEntries(Object.entries(snapshot.fields)
+  .filter(([key]) => key.startsWith(`${index}-`)).map(([key, value]) => [key.slice(2), value]));
+
+test('inserting a mount moves the entire rider and existing passengers without copying equipment', async () => {
+  const before = structuredClone(rider);
+  operations = [{ action: 'insert_mob', index: 0, mobType: 'horse' }];
+  const result = await call({ mode: 'summon', prompt: 'Посади его на лошадь', snapshot: rider });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.snapshot.mobOrder.map(m => m.mobType), ['horse', 'zombie', 'chicken']);
+  assert.deepEqual(fieldsAt(result.snapshot, 1), fieldsAt(rider, 0));
+  assert.deepEqual(fieldsAt(result.snapshot, 2), fieldsAt(rider, 1));
+  assert.deepEqual(fieldsAt(result.snapshot, 0), { mob: 'horse', persist: true, 'name-visible': true });
+  const command = buildSummonCommand(result.snapshot);
+  assert.match(command, /^\/summon minecraft:horse ~ ~ ~ /);
+  assert.match(command, /Passengers:\[\{id:"minecraft:zombie"/);
+  assert.match(command, /diamond_sword/);
+  assert.equal(buildNBTPartsFor(result.snapshot, 0).join(''), 'PersistenceRequired:1b');
+  assert.deepEqual(rider, before);
+  assert.match(upstream.input[0].content, /insert_mob/);
+  assert.match(upstream.input[0].content, /move_mob/);
+  assert.equal(upstream.text.format.schema.properties.operations.items.properties.toIndex.type, 'integer');
+});
+
+test('moving mobs in either direction preserves every field and later operations use new indices', async () => {
+  operations = [{ action: 'move_mob', index: 1, toIndex: 0 }];
+  const swapped = await call({ mode: 'summon', prompt: 'Поменяй их местами', snapshot: rider });
+  assert.deepEqual(swapped.snapshot.mobOrder.map(m => m.mobType), ['chicken', 'zombie']);
+  assert.deepEqual(fieldsAt(swapped.snapshot, 1), fieldsAt(rider, 0));
+  assert.deepEqual(fieldsAt(swapped.snapshot, 0), fieldsAt(rider, 1));
+  operations = [{ action: 'move_mob', index: 0, toIndex: 1 }];
+  const restored = await call({ mode: 'summon', prompt: 'Верни обратно', snapshot: swapped.snapshot });
+  assert.deepEqual(restored.snapshot, rider);
+  operations = [{ action: 'insert_mob', index: 1, mobType: 'pig' },
+    { action: 'set_text', index: 2, field: 'name', value: 'Пассажир' }];
+  const middle = await call({ mode: 'summon', prompt: 'Добавь свинью под курицей и назови курицу', snapshot: rider });
+  assert.deepEqual(middle.snapshot.mobOrder.map(m => m.mobType), ['zombie', 'pig', 'chicken']);
+  assert.deepEqual(fieldsAt(middle.snapshot, 0), fieldsAt(rider, 0));
+  assert.equal(middle.snapshot.fields['2-baby'], true);
+  assert.equal(middle.snapshot.fields['2-name'], 'Пассажир');
+});
+
+test('structural operations reject invalid indices, unknown mobs and overflow without losing characters', async () => {
+  operations = [
+    ...[-1, 0.5, 3, 6].map(index => ({ action: 'insert_mob', index, mobType: 'horse' })),
+    { action: 'insert_mob', index: 0, mobType: 'unknown' },
+    ...[-1, 0.5, 2, 6, undefined, null, '1'].map(toIndex => ({ action: 'move_mob', index: 0, toIndex })),
+    { action: 'move_mob', index: 4, toIndex: 0 },
+    { action: 'move_mob', index: 0, toIndex: 0 },
+  ];
+  const invalid = await call({ mode: 'summon', prompt: 'Измени порядок', snapshot: rider });
+  assert.deepEqual(invalid.snapshot, rider);
+  operations = [{ action: 'insert_mob', index: 2, mobType: 'horse' }];
+  const appended = await call({ mode: 'summon', prompt: 'Добавь лошадь сверху', snapshot: rider });
+  assert.deepEqual(appended.snapshot.mobOrder.map(m => m.mobType), ['zombie', 'chicken', 'horse']);
+  const full = { mobOrder: Array.from({ length: 6 }, () => ({ mobType: 'zombie' })),
+    fields: Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`${i}-name`, `Моб ${i}`])) };
+  operations = [{ action: 'insert_mob', index: 0, mobType: 'horse' }];
+  const capped = await call({ mode: 'summon', prompt: 'Посади его на лошадь', snapshot: full });
+  assert.equal(capped.snapshot.mobOrder.length, 6);
+  for (let i = 0; i < 6; i++) assert.equal(capped.snapshot.fields[`${i}-name`], `Моб ${i}`);
+  assert.match(capped.notes.join(''), /уже 6 мобов/);
+});
+
+
+test('mount_mob seats the armored zombie on a spider and preserves all rider fields', async () => {
+  operations = [{ action: 'mount_mob', index: 0, mobType: 'spider' }];
+  const result = await call({ mode: 'summon', prompt: 'Посади его на паука', snapshot: rider });
+  assert.deepEqual(result.snapshot.mobOrder.map(m => m.mobType), ['spider', 'zombie', 'chicken']);
+  assert.deepEqual(fieldsAt(result.snapshot, 1), fieldsAt(rider, 0));
+  assert.deepEqual(fieldsAt(result.snapshot, 2), fieldsAt(rider, 1));
+  assert.equal(result.snapshot.fields['0-slot-head'], undefined);
+  operations = [{ action: 'mount_mob', index: 1, mobType: 'horse' }];
+  const nested = await call({ mode: 'summon', prompt: 'Посади курицу на лошадь', snapshot: rider });
+  assert.deepEqual(nested.snapshot.mobOrder.map(m => m.mobType), ['zombie', 'horse', 'chicken']);
+  assert.deepEqual(fieldsAt(nested.snapshot, 0), fieldsAt(rider, 0));
+  assert.deepEqual(fieldsAt(nested.snapshot, 2), fieldsAt(rider, 1));
+  operations = [{ action: 'mount_mob', index: 2, mobType: 'spider' }];
+  const invalid = await call({ mode: 'summon', prompt: 'Посади на паука', snapshot: rider });
+  assert.deepEqual(invalid.snapshot, rider);
+});
+
+
+test('removing the root promotes the entire next mob and preserves the remaining passenger chain', async () => {
+  const snapshot = { mobOrder: [{ mobType: 'spider' }, { mobType: 'horse' }, { mobType: 'zombie' }, { mobType: 'chicken' }], fields: {
+    '0-mob': 'spider', '0-name': 'Удалить', '0-eff-speed': true,
+    '1-mob': 'horse', '1-name': 'Конь', '1-horse-coat': '4', '1-health': '40',
+    ...Object.fromEntries(Object.entries(rider.fields).map(([key, value]) => [`${Number(key[0]) + 2}-${key.slice(2)}`, value])),
+  } };
+  const before = structuredClone(snapshot);
+  operations = [{ action: 'remove_mob', index: 0 }];
+  const result = await call({ mode: 'summon', prompt: 'Убери паука', snapshot });
+  assert.deepEqual(result.snapshot.mobOrder.map(m => m.mobType), ['horse', 'zombie', 'chicken']);
+  for (let i = 0; i < 3; i++) assert.deepEqual(fieldsAt(result.snapshot, i), fieldsAt(snapshot, i + 1));
+  assert.ok(!Object.keys(result.snapshot.fields).some(key => key.startsWith('3-')));
+  assert.deepEqual(snapshot, before);
+  assert.match(buildSummonCommand(result.snapshot), /^\/summon minecraft:horse/);
+  assert.match(buildSummonCommand(result.snapshot), /Passengers:\[\{id:"minecraft:zombie"/);
+  const second = await call({ mode: 'summon', prompt: 'Теперь убери лошадь', snapshot: result.snapshot });
+  assert.deepEqual(second.snapshot.mobOrder.map(m => m.mobType), ['zombie', 'chicken']);
+  assert.deepEqual(fieldsAt(second.snapshot, 0), fieldsAt(rider, 0));
+  assert.deepEqual(fieldsAt(second.snapshot, 1), fieldsAt(rider, 1));
+  assert.match(buildSummonCommand(second.snapshot), /^\/summon minecraft:zombie/);
+});
+
+test('root removal followed by edits uses new indices; deleting the last mob reports the limit', async () => {
+  operations = [{ action: 'remove_mob', index: 0 }, { action: 'set_text', index: 0, field: 'name', value: 'Осталась курица' }];
+  const result = await call({ mode: 'summon', prompt: 'Убери зомби и назови курицу', snapshot: rider });
+  assert.deepEqual(result.snapshot.mobOrder, [{ mobType: 'chicken' }]);
+  assert.equal(result.snapshot.fields['0-name'], 'Осталась курица');
+  assert.equal(result.snapshot.fields['0-baby'], true);
+  assert.equal(result.snapshot.fields['0-slot-head'], undefined);
+  operations = [{ action: 'remove_mob', index: 0 }];
+  const last = await call({ mode: 'summon', prompt: 'Убери курицу', snapshot: result.snapshot });
+  assert.deepEqual(last.snapshot, result.snapshot);
+  assert.match(last.notes.join(''), /Нельзя удалить единственного моба/);
 });

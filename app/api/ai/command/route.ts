@@ -29,6 +29,7 @@ type Primitive = string | number | boolean;
 type AiOperation = {
   action: string;
   index?: number;
+  toIndex?: number;
   layerIndex?: number;
   field?: string;
   slot?: string;
@@ -101,6 +102,7 @@ const responseSchema = {
         properties: {
           action: { type: "string" },
           index: { type: "integer" },
+          toIndex: { type: "integer" },
           layerIndex: { type: "integer" },
           field: { type: "string" },
           slot: { type: "string" },
@@ -244,12 +246,16 @@ function buildSystemPrompt(mode: Mode) {
       ...common,
       "Режим summon. Нужно заполнить редактор мобов и пассажиров.",
       "Если передано текущее состояние, меняй только то, что просит НОВЫЙ запрос. Сохраняй остальные поля и пассажиров. История нужна для понимания ссылок, а текущее состояние важнее истории; не повторяй старые операции. Если состояния нет, собери с нуля.",
-      "Удаление: remove_mob(index) удаляет только пассажира (index >= 1), следующие индексы сдвигаются вниз; несколько удаляй с конца. clear_equipment(index,slot) удаляет предмет и все его настройки; remove_effect(index,effectId); remove_equipment_enchant(index,slot,enchantId). Для снятия флага set_boolean value=false, очистки имени set_text value=пустая строка, сброса числа reset_number(index,field). Снять окраску или отделку: clear_equipment_dye(index,slot), clear_equipment_trim(index,slot).",
-      "Операции summon: set_mob(index,mobType), set_text(index,field,value), set_boolean(index,field,value), set_number(index,field,value), set_equipment(index,slot,itemId,count,dropChance), set_equipment_enchant(index,slot,enchantId,level), set_equipment_trim(index,slot,material,pattern), set_equipment_dye(index,slot,color), set_effect(index,effectId,level,durationSeconds).",
+      "Удаление: remove_mob(index) удаляет ЛЮБОГО существующего моба, включая основного с index=0, если в цепочке больше одного моба. Следующие индексы сдвигаются вниз вместе со всеми настройками. При удалении index=0 прежний index=1 становится основным; остальные пассажиры сохраняются. Нескольких удаляй с конца. Единственного моба удалить нельзя: редактор должен содержать хотя бы одного моба, объясни это ограничение. НЕ заменяй удаление через set_mob, очистку снаряжения или копирование персонажей. clear_equipment(index,slot) удаляет предмет и все его настройки; remove_effect(index,effectId); remove_equipment_enchant(index,slot,enchantId). Для снятия флага set_boolean value=false, очистки имени set_text value=пустая строка, сброса числа reset_number(index,field). Снять окраску или отделку: clear_equipment_dye(index,slot), clear_equipment_trim(index,slot).",
+      'Пример удаления: [паук, лошадь, зомби в алмазной броне, курица] + "Убери паука" → {"operations":[{"action":"remove_mob","index":0}]}, получится [та же лошадь, тот же зомби в броне, та же курица]. Если затем просят убрать лошадь, снова remove_mob(0): получится [тот же зомби в броне, та же курица]. Индексы бери из ТЕКУЩЕГО состояния, даже если история ошибочно утверждает, что моб уже удалён.',
+      "Операции summon: remove_mob(index), mount_mob(index,mobType), insert_mob(index,mobType), move_mob(index,toIndex), set_mob(index,mobType), set_text(index,field,value), set_boolean(index,field,value), set_number(index,field,value), set_equipment(index,slot,itemId,count,dropChance), set_equipment_enchant(index,slot,enchantId,level), set_equipment_trim(index,slot,material,pattern), set_equipment_dye(index,slot,color), set_effect(index,effectId,level,durationSeconds).",
       "Щиты и флаги в снаряжении: set_equipment_shield(index,slot,color) меняет только основу; set_equipment_shield(index,slot,layerIndex,pattern,color) добавляет или меняет слой. index — моб, layerIndex — слот слоя 0..15 (отдельные индексы!). Для добавления выбери первый свободный слой. Для перекраски существующего слоя передай layerIndex и color без pattern. Сначала поставь shield или флаг через set_equipment. remove_equipment_shield_layer(index,slot,layerIndex) убирает только указанный слой; clear_equipment_shield_layers(index,slot) убирает все слои, сохраняя основу; clear_equipment_shield(index,slot) отключает оформление целиком.",
       'Пример красного щита с белым прямым крестом у основного моба: {"operations":[{"action":"set_equipment","index":0,"slot":"offhand","itemId":"shield"},{"action":"set_equipment_shield","index":0,"slot":"offhand","color":"red"},{"action":"set_equipment_shield","index":0,"slot":"offhand","layerIndex":0,"pattern":"straight_cross","color":"white"}]}. Основа — отдельная операция без layerIndex и pattern; для слоёв указывай layerIndex. pattern — ID без префикса minecraft:. Не пропускай основу, даже если добавляешь узоры.',
       `Красители для щитов и флагов: ${DYE_COLORS.map(([id, name]) => `${id}=${name}`).join(", ")}. Узоры: ${BANNER_PATTERNS.map(([id, name]) => `${id}=${name}`).join(", ")}.`,
-      "index 0 — основной нижний моб. index 1 сидит на index 0, index 2 сидит на index 1. Для пассажиров сначала делай set_mob с нужным index.",
+      "index 0 — основной нижний моб. index 1 сидит на index 0, index 2 сидит на index 1. Для НОВОГО пассажира сверху делай set_mob с нужным index. Это НЕ посадка существующего персонажа на транспорт.",
+      "Перестройка цепочки: insert_mob(index,mobType) вставляет НОВОГО моба на index (0..длина цепочки), сдвигая прежних вверх вместе со ВСЕМИ их настройками. move_mob(index,toIndex) перемещает СУЩЕСТВУЮЩЕГО моба целиком на конечный toIndex (0..длина-1), сдвигая остальных. После каждой операции индексы меняются; последующие операции адресуют уже новую цепочку. Максимум 6 мобов; если места нет, объясни ограничение, не удаляй персонажей без просьбы.",
+      "ПОСАДКА: mount_mob(index,mobType) сажает СУЩЕСТВУЮЩЕГО персонажа index НА НОВОГО моба mobType. Сервер сам вставляет транспорт ПОД персонажем, сохраняя все поля персонажа и прежних пассажиров. Фраза Посади его на паука означает mount_mob(index персонажа,spider), а НЕ set_mob(index+1,spider): последнее посадит паука на персонажа и выполнит запрос наоборот. Правило одинаково для лошади, паука, свиньи и любого другого моба. Для посадки существующего персонажа на нового моба ВСЕГДА используй mount_mob, не set_mob и не insert_mob. Для перестановки существующих мобов используй move_mob. НЕ имитируй перенос через set_mob и повторное создание снаряжения: set_mob только заменяет вид на данном месте и оставляет поля на этом месте. Перенос сохраняет имя, оружие, броню, чары, отделку, окраску, щиты, эффекты, атрибуты и все ручные настройки; не перечисляй их заново. Если персонажа явно не назвали, используй историю и текущее состояние для определения персонажа, а не всегда index 0; уже сидящего на нужном мобе повторно не добавляй.",
+      'Примеры доработки: [зомби в алмазной броне] + "Посади его на паука" → {"operations":[{"action":"mount_mob","index":0,"mobType":"spider"}]}, получится [паук, тот же зомби в алмазной броне]. [зомби-рыцарь] + "Посади его на лошадь" → {"operations":[{"action":"mount_mob","index":0,"mobType":"horse"}]}, получится [лошадь, тот же рыцарь]. [зомби-рыцарь, лошадь] + "Наоборот, рыцарь должен сидеть на лошади" → {"operations":[{"action":"move_mob","index":1,"toIndex":0}]}. [лошадь, зомби-рыцарь] + "Посади рыцаря на свинью" → {"operations":[{"action":"mount_mob","index":1,"mobType":"pig"}]}, получится [лошадь, свинья, тот же рыцарь]. Если также просят изменить рыцаря, применяй настройки к его НОВОМУ индексу после переноса.',
       "dropChance заполняй только если пользователь явно просит шанс выпадения; иначе не указывай.",
       "Если просят 'в незеритке', поставь полный netherite armor: head/chest/legs/feet. Оружие клади в mainhand, щит/тотем в offhand.",
       `Мобы: ${formatGrouped(MOB_GROUPS, "mobs")}.`,
@@ -328,16 +334,32 @@ function applySummonPlan(plan: AiPlan, current?: SummonSnapshot): { snapshot: Su
   for (const op of plan.operations) {
     const index = op.index ?? 0;
     if (!Number.isInteger(index) || index < 0 || index >= maxMobs) continue;
-    if (op.action === "remove_mob") {
-      if (index === 0 || !snapshot.mobOrder[index]) continue;
-      const fields: SummonSnapshot["fields"] = {};
-      for (const [key, value] of Object.entries(snapshot.fields)) {
-        const match = /^(\d+)-(.*)$/.exec(key);
-        if (!match || Number(match[1]) === index) continue;
-        const oldIndex = Number(match[1]);
-        fields[`${oldIndex > index ? oldIndex - 1 : oldIndex}-${match[2]}`] = value;
+    if (op.action === "insert_mob" || op.action === "mount_mob") {
+      if (op.action === "mount_mob" && !snapshot.mobOrder[index]) continue;
+      if (!op.mobType || !validMobs.has(op.mobType) || index > snapshot.mobOrder.length) continue;
+      if (snapshot.mobOrder.length >= maxMobs) {
+        plan.notes.push("Нельзя добавить ещё одного моба: в цепочке уже 6 мобов. Существующие персонажи сохранены.");
+        continue;
       }
-      snapshot = normalizeSnapshot({ mobOrder: snapshot.mobOrder.filter((_, i) => i !== index), fields });
+      const order: Array<number | string> = snapshot.mobOrder.map((_, i) => i);
+      order.splice(index, 0, op.mobType);
+      snapshot = reorderSummonMobs(snapshot, order);
+      continue;
+    }
+    if (op.action === "move_mob") {
+      if (!snapshot.mobOrder[index] || !Number.isInteger(op.toIndex) || op.toIndex! < 0 || op.toIndex! >= snapshot.mobOrder.length) continue;
+      const order = snapshot.mobOrder.map((_, i) => i);
+      order.splice(op.toIndex!, 0, order.splice(index, 1)[0]);
+      snapshot = reorderSummonMobs(snapshot, order);
+      continue;
+    }
+    if (op.action === "remove_mob") {
+      if (!snapshot.mobOrder[index]) continue;
+      if (snapshot.mobOrder.length === 1) {
+        plan.notes.push("Нельзя удалить единственного моба: в редакторе должен остаться хотя бы один моб.");
+        continue;
+      }
+      snapshot = reorderSummonMobs(snapshot, snapshot.mobOrder.map((_, i) => i).filter(i => i !== index));
       continue;
     }
     if (op.action === "set_mob" && op.mobType && validMobs.has(op.mobType)) {
@@ -543,6 +565,25 @@ function applyGivePlan(plan: AiPlan, prompt: string, current?: GiveSnapshot): { 
     }
   }
   return { snapshot };
+}
+
+// Reindex every field together, including settings unknown to the AI operation schema.
+// Numbers identify existing mobs; strings create fresh mobs with editor defaults.
+function reorderSummonMobs(snapshot: SummonSnapshot, order: Array<number | string>): SummonSnapshot {
+  const fields: SummonSnapshot["fields"] = {};
+  const mobOrder = order.map((source, index) => {
+    if (typeof source === "string") {
+      const fresh = toSnapshot([source]);
+      for (const [key, value] of Object.entries(fresh.fields)) fields[`${index}-${key.slice(2)}`] = value;
+      return { mobType: source };
+    }
+    const prefix = `${source}-`;
+    for (const [key, value] of Object.entries(snapshot.fields)) {
+      if (key.startsWith(prefix)) fields[`${index}-${key.slice(prefix.length)}`] = value;
+    }
+    return { ...snapshot.mobOrder[source] };
+  });
+  return normalizeSnapshot({ mobOrder, fields });
 }
 
 function ensureSummonIndex(snapshot: SummonSnapshot, index: number, mobType = "zombie") {
