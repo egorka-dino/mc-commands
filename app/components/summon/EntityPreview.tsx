@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { buildPreviewScene, placePreviewEntity, isPreviewSupported, PREVIEW_ROOT, PREVIEW_VERSION, type SceneEntity } from "./preview-scene";
@@ -89,6 +89,24 @@ async function createEntity(input: SceneEntity) {
 
 type Viewer = { scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; render: () => void; framedDistance?: number };
 export default function EntityPreview({ snapshot }: { snapshot: SummonSnapshot }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const expandButton = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const [expanded, setExpanded] = useState(false);
+  function toggleExpanded() {
+    const element = dialog.current;
+    if (!element) return;
+    element.close();
+    if (expanded) { element.show(); } else { element.showModal(); }
+    setExpanded(!expanded);
+    expandButton.current?.focus({ preventScroll: true });
+  }
+  useEffect(() => {
+    if (!expanded) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [expanded]);
   const host = useRef<HTMLDivElement>(null); const viewer = useRef<Viewer | null>(null);
   const [sceneWarnings,setSceneWarnings] = useState<string[]>([]);
   const [ready,setReady] = useState(false); const [status,setStatus] = useState("Загрузка 3D…");
@@ -147,13 +165,14 @@ export default function EntityPreview({ snapshot }: { snapshot: SummonSnapshot }
     }
     void update(); return () => { cancelled = true; };
   },[ready,sceneInput]);
-  return <div className="entity-preview">
-    <p className="hint">3D · Minecraft Java {PREVIEW_VERSION} · каталог конструктора</p>
+  return <dialog open ref={dialog} className="entity-preview" aria-labelledby={titleId} aria-modal={expanded} onCancel={event => { event.preventDefault(); if (expanded) toggleExpanded(); }}>
+    <div className="entity-preview-header"><p id={titleId} className="hint">3D · Minecraft Java {PREVIEW_VERSION} · каталог конструктора</p><button ref={expandButton} type="button" className="small" aria-expanded={expanded} onClick={toggleExpanded}>{expanded ? "Свернуть" : "Развернуть"}</button></div>
     <div className="entity-preview-canvas" ref={host} />
     <p role="status" className="hint">{status}</p>
     <div className="entity-preview-controls"><button type="button" className="small" onClick={() => { const v=viewer.current; if(v) { v.camera.position.sub(v.controls.target).multiplyScalar(0.8).add(v.controls.target); v.controls.update(); v.render(); } }}>Приблизить</button><button type="button" className="small" onClick={() => { const v=viewer.current; if(v) { v.camera.position.sub(v.controls.target).multiplyScalar(1.25).add(v.controls.target); v.controls.update(); v.render(); } }}>Отдалить</button><button type="button" className="small" onClick={() => { const v=viewer.current; if(v) { const p=v.camera.position.clone().sub(v.controls.target).applyAxisAngle(new THREE.Vector3(0,1,0),Math.PI/4); v.camera.position.copy(v.controls.target).add(p); v.controls.update(); v.render(); } }}>Повернуть</button></div>
-    <p className="hint">Вращение — перетаскиванием, приближение — колесом или жестом. Показана статичная поза. Посадка использует точки крепления Minecraft; особые позы транспорта пока не воспроизводятся.</p>
+    <div className="entity-preview-notes"><p className="hint">Вращение — перетаскиванием, приближение — колесом или жестом. Показана статичная поза. Посадка использует точки крепления Minecraft; особые позы транспорта пока не воспроизводятся.</p>
     <details><summary>Ограничения 3D-предпросмотра</summary><p className="hint">Модели всех 94 сущностей каталога и 69 предметов экипировки извлечены из Minecraft Java 26.1.2. Слои брони и крепления предметов берутся из игрового рендерера. Облако эффекта состоит только из частиц. Анимации, чары, огонь, контур свечения и частицы пока не показаны. Щиты и флаги поддерживают узоры, броня — окраску и отделку. В этой версии Minecraft отделка на детской броне не отображается. Скины голов игроков из сети и ресурс-паки посетителя не загружаются.</p></details>
     {Array.from(new Set([...sceneInput.flatMap(e => e.warnings),...sceneWarnings])).map(message => <p className="hint" key={message}>{message}</p>)}
-  </div>;
+    </div>
+  </dialog>;
 }

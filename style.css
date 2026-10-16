@@ -1223,3 +1223,19 @@
 .preview-panel, .entity-preview, .entity-preview-canvas { min-width: 0; max-width: 100%; }
 .entity-preview-canvas { position: relative; }
 .entity-preview-canvas canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+
+/* The same canvas stays mounted when the native dialog enters the top layer. */
+dialog.entity-preview { position: static; width: 100%; padding: 0; border: 0; color: inherit; background: transparent; box-sizing: border-box; }
+.entity-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.entity-preview-header p { margin: 0; }
+.entity-preview-header button { flex-shrink: 0; }
+dialog.entity-preview::backdrop { background: rgb(0 0 0 / 75%); }
+dialog.entity-preview:modal { position: fixed; inset: 0; margin: auto; width: calc(100% - 32px); max-width: 1600px; height: calc(100dvh - 32px); max-height: none; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+.entity-preview:modal .entity-preview-canvas { flex: 1; min-height: 0; height: auto; }
+.entity-preview:modal .entity-preview-notes { max-height: 16dvh; overflow: auto; flex-shrink: 0; }
+.entity-preview:modal > [role="status"] { margin: 8px 0 0; }
+.entity-preview:modal .entity-preview-controls { flex-shrink: 0; }
+@media (max-width: 600px) {
+  dialog.entity-preview:modal { width: calc(100% - 12px); height: calc(100dvh - 12px); padding: 10px; border-radius: 10px; }
+  .entity-preview:modal .entity-preview-notes { max-height: 12dvh; }
+}
