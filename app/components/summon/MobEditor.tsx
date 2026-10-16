@@ -2,9 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { SearchPicker } from "../editor/SearchPicker";
+import { EditorSection } from "../editor/EditorSection";
+import { PreviewLoading } from "../editor/PreviewLoading";
+import { CommandResult } from "../editor/CommandResult";
 import { CommandAssistant } from "../command-assistant/CommandAssistant";
 
-const EntityPreview = dynamic(() => import("./EntityPreview"), { ssr: false, loading: () => <p className="hint">Загрузка 3D-просмотра…</p> });
+const EntityPreview = dynamic(() => import("./EntityPreview"), { ssr: false, loading: () => <PreviewLoading /> });
 import { ServerCommandExecutor } from "../ServerCommandExecutor";
 import {
   ALL_MOBS,
@@ -197,6 +201,7 @@ function makeRandomSnapshot() {
 
 export function MobEditor({ adminMode = false, showAiAssistant = false, initialSnapshot, templates, onSnapshotChange }: Props) {
   const [snapshot, setSnapshot] = useState(() => normalizeSnapshot(initialSnapshot || toSnapshot(["zombie"])));
+  const [undoState, setUndoState] = useState<{ snapshot: SummonSnapshot; coords: string; presetId: string } | null>(null);
   const [coords, setCoords] = useState("~ ~ ~");
   const [presetId, setPresetId] = useState("");
   const [aiSession, setAiSession] = useState(0);
@@ -213,6 +218,7 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
       if (JSON.stringify(next) === JSON.stringify(snapshotRef.current)) return;
       snapshotRef.current = next;
       setSnapshot(next);
+      setUndoState(null);
       setAiSession(value => value + 1);
     }
   }, [initialSnapshot]);
@@ -235,7 +241,16 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
   }
 
   function updateField(index: number, field: string, value: SummonFieldValue) {
-    updateSnapshot(setIndexedField(snapshot, index, field, value));
+    let next = setIndexedField(snapshot, index, field, value);
+    if (field.startsWith("ench-") && value === true) {
+      const slot = SLOTS.find(slot => field.startsWith(`ench-${slot.key}-`));
+      if (slot) {
+        const id = field.slice(`ench-${slot.key}-`.length);
+        const levelKey = `enchlvl-${slot.key}-${id}`;
+        if (!read(snapshot, index, levelKey)) next = setIndexedField(next, index, levelKey, enchantsForItem(read(snapshot, index, `slot-${slot.key}`)).find(enchant => enchant.id === id)?.max || 1);
+      }
+    }
+    updateSnapshot(next);
   }
 
   function showToast(text: string) {
@@ -266,10 +281,11 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
   }
 
   function copy(text = command) {
-    navigator.clipboard.writeText(text).then(() => showToast("Скопировано"));
+    navigator.clipboard.writeText(text).then(() => showToast("Скопировано")).catch(() => showToast("Не удалось скопировать"));
   }
 
   function loadSnapshot(next: SummonSnapshot) {
+    setUndoState({ snapshot, coords, presetId });
     setAiSession(value => value + 1);
     updateSnapshot(next);
   }
@@ -285,54 +301,46 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
   const selectedPreset = presets.find((item) => item.id === presetId);
 
   return (
-    <div className="summon-app">
-      <div className={`summon-workspace${shouldShowAiAssistant ? " has-assistant" : ""}`}>
-      {shouldShowAiAssistant ? <CommandAssistant key={aiSession} mode="summon" snapshot={snapshot} normalize={normalizeSnapshot} adminMode={adminMode} onApply={next => {
-        updateSnapshot(next);
-        setPresetId("");
-      }} /> : null}
-        <section className="panel preview-panel summon-live-preview">
-          <h2>3D-предпросмотр</h2>
-          <EntityPreview snapshot={snapshot} />
-        </section>
-      </div>
-
+    <div className={`summon-app generator-layout${adminMode ? " admin-editor" : ""}`}><div className="editor-main">
       {!adminMode ? (
-        <section className="panel">
-          <h2>Координаты</h2>
-          <label><span className="lab">Где заспавнить</span><input type="text" value={coords} onChange={(event) => setCoords(event.target.value)} placeholder="~ ~ ~" /></label>
-          <p className="hint">~ ~ ~ — на месте игрока. ~ ~1 ~ — на 1 блок выше. Точные координаты: 100 64 -200.</p>
-        </section>
-      ) : null}
-
-      {!adminMode ? (
-        <section className="panel">
-          <h2>Библиотека мобов <span className="sub">общая для всех</span></h2>
+        <EditorSection title="Готовые мобы" summary={`${presets.filter(preset => preset.enabled !== false).length} шаблонов`}>
           <div className="preset-picker">
-            <label><span className="lab">Выбери готового моба</span>
-              <select disabled={!presets.length} value={presetId} onChange={(event) => applyPreset(event.target.value)}>
-                <option value="">— выбери готового моба —</option>
-                {[...new Set(presets.map((preset) => preset.category))].map((category) => (
-                  <optgroup label={category} key={category}>
-                    {presets.filter((preset) => preset.category === category && preset.enabled !== false).map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
+            <SearchPicker label="Найти готового моба" value={presetId} groups={[...new Set(presets.map(preset => preset.category))].map(category => ({ name: category, options: presets.filter(preset => preset.category === category && preset.enabled !== false).map(preset => [preset.id, preset.name] as const) }))} onChange={applyPreset} />
             <div className="preset-description">
               {selectedPreset ? <><strong>{selectedPreset.name}</strong><span>{selectedPreset.description}</span><code>{selectedPreset.mobOrder.map((mob) => ALL_MOBS[mob.mobType] || mob.mobType).join(" -> ")}</code></> : presets.length ? <span>Готовый моб сразу заменит текущего моба и пассажиров.</span> : <span>Пока нет готовых мобов.</span>}
             </div>
           </div>
-        </section>
+        </EditorSection>
+      ) : null}
+
+      {shouldShowAiAssistant ? <EditorSection title="Описать словами" summary="AI-помощник" open><CommandAssistant key={aiSession} mode="summon" snapshot={snapshot} normalize={normalizeSnapshot} adminMode={adminMode} onApply={next => {
+        setUndoState({ snapshot, coords, presetId });
+        updateSnapshot(next);
+        setPresetId("");
+      }} /></EditorSection> : null}
+
+      <section className="panel">
+        <h2>Выбери и настрой моба</h2>
+        {snapshot.mobOrder.map((mob, index) => <MobCard key={index} index={index} snapshot={snapshot} updateField={updateField} equipKit={material => { const fields = { ...snapshot.fields }; for (const [slot, piece] of [["head", "helmet"], ["chest", "chestplate"], ["legs", "leggings"], ["feet", "boots"]]) fields[fieldKey(index, `slot-${slot}`)] = `${material}_${piece}`; updateSnapshot({ ...snapshot, fields }); }} removeMob={() => updateSnapshot(reindexWithout(snapshot, index))} />)}
+        <div className="passenger-controls"><button className="info" type="button" onClick={() => updateSnapshot({ mobOrder: [...snapshot.mobOrder, { mobType: "zombie" }], fields: { ...snapshot.fields, [fieldKey(snapshot.mobOrder.length, "mob")]: "zombie", [fieldKey(snapshot.mobOrder.length, "persist")]: true, [fieldKey(snapshot.mobOrder.length, "name-visible")]: true } })}>+ Добавить пассажира</button><span className="hint">Первый пассажир сидит на основном, второй на первом, и т.д.</span></div>
+      </section>
+
+
+
+      {!adminMode ? (
+        <EditorSection title="Где появится моб" summary={coords === "~ ~ ~" ? "На месте игрока · Изменить" : coords}>
+          <label><span className="lab">Где заспавнить</span><input type="text" value={coords} onChange={(event) => setCoords(event.target.value)} placeholder="~ ~ ~" /></label>
+          <p className="hint">~ ~ ~ — на месте игрока. ~ ~1 ~ — на 1 блок выше. Точные координаты: 100 64 -200.</p>
+        </EditorSection>
       ) : null}
 
 
 
       {!adminMode ? (
-        <section className="panel">
+        <EditorSection title="Избранное" summary={`${favorites.length} сборок`}>
           <div className="fav-header"><h2>Коллекция любимчиков</h2><button className="small sec" type="button" onClick={addFavorite}>Сохранить текущего</button></div>
           {favorites.length ? <div className="favorites-grid">{favorites.map((favorite) => <div className="fav-card" key={favorite.id}><div className="fav-name">{favorite.name}</div><div className="fav-sub">{ALL_MOBS[favorite.mobOrder[0]?.mobType] || favorite.mobOrder[0]?.mobType}</div><div className="fav-actions"><button className="small" type="button" onClick={() => loadSnapshot(favorite)}>Загрузить</button><button className="small sec" type="button" onClick={() => renameFavorite(favorite.id)}>Переименовать</button><button className="small info" type="button" onClick={() => copy(buildSummonCommand(favorite))}>Копировать</button><button className="small danger" type="button" onClick={() => saveFavorites(favorites.filter((item) => item.id !== favorite.id))}>Удалить</button></div></div>)}</div> : <p className="empty-favs">Пока пусто. Настрой моба и нажми “Сохранить текущего”.</p>}
-        </section>
+        </EditorSection>
       ) : null}
 
       {!adminMode ? (
@@ -342,32 +350,23 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
         </section>
       ) : null}
 
-      <section className="panel">
-        <h2>Мобы <span className="sub">основной + пассажиры (верхом)</span></h2>
-        {snapshot.mobOrder.map((mob, index) => <MobCard key={index} index={index} snapshot={snapshot} updateField={updateField} removeMob={() => updateSnapshot(reindexWithout(snapshot, index))} />)}
-        <div className="passenger-controls"><button className="info" type="button" onClick={() => updateSnapshot({ mobOrder: [...snapshot.mobOrder, { mobType: "zombie" }], fields: { ...snapshot.fields, [fieldKey(snapshot.mobOrder.length, "mob")]: "zombie", [fieldKey(snapshot.mobOrder.length, "persist")]: true, [fieldKey(snapshot.mobOrder.length, "name-visible")]: true } })}>+ Добавить пассажира</button><span className="hint">Первый пассажир сидит на основном, второй на первом, и т.д.</span></div>
-      </section>
 
-      <section className="panel preview-panel"><h2>Состав и характеристики</h2><Preview snapshot={snapshot} /></section>
-
-      {!adminMode ? (
-        <section className="panel output-panel">
-          <h2>Готовая команда</h2>
-          <div id="command-output">{command}</div>
-          <div className={`char-count${command.length > 256 ? " long" : ""}`}>Длина: {command.length} символов</div>
-          <div className="btn-row"><button type="button" onClick={() => copy()}>Копировать</button><button className="sec" type="button" onClick={() => showToast("Обновлено")}>Обновить</button><button className="danger" type="button" onClick={() => { if (window.confirm("Сбросить все настройки, пассажиров и историю AI-помощника?")) loadSnapshot(toSnapshot(["zombie"])); }}>Сбросить всё</button></div>
-          {command.length > 256 ? <div className="warn">Команда длиннее 256 символов — в чат не поместится. Используй командный блок.</div> : null}
-        </section>
-      ) : null}
+      </div>
+      {!adminMode ? <CommandResult command={command} onCopy={() => copy()} onSave={addFavorite}
+        onReset={() => { if (window.confirm("Сбросить все настройки и пассажиров?")) { loadSnapshot(toSnapshot(["zombie"])); setCoords("~ ~ ~"); setPresetId(""); } }}
+        onUndo={undoState ? () => { updateSnapshot(undoState.snapshot); setCoords(undoState.coords); setPresetId(undoState.presetId); setUndoState(null); setAiSession(value => value + 1); showToast("Предыдущая сборка восстановлена"); } : undefined}
+        warning={command.length > 256 ? "Команда длиннее 256 символов — используй командный блок." : undefined}>
+        <EditorSection title="3D-предпросмотр" open><EntityPreview snapshot={snapshot} /></EditorSection>
+        <EditorSection title="Состав и характеристики"><Preview snapshot={snapshot} /></EditorSection>
+      </CommandResult> : <aside className="editor-result"><EditorSection title="3D-предпросмотр" open><EntityPreview snapshot={snapshot} /></EditorSection><Preview snapshot={snapshot} /></aside>}
       {!adminMode ? <ServerCommandExecutor mode="summon" snapshot={snapshot} /> : null}
-      <div id="toast" style={{ opacity: toast ? 1 : 0 }}>{toast}</div>
+      <div id="toast" role="status" style={{ opacity: toast ? 1 : 0 }}>{toast}</div>
     </div>
   );
 }
 
-function MobCard({ index, snapshot, updateField, removeMob }: { index: number; snapshot: SummonSnapshot; updateField: (index: number, field: string, value: SummonFieldValue) => void; removeMob: () => void }) {
+function MobCard({ index, snapshot, updateField, removeMob, equipKit }: { index: number; snapshot: SummonSnapshot; updateField: (index: number, field: string, value: SummonFieldValue) => void; removeMob: () => void; equipKit: (material: string) => void }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [mobSearch, setMobSearch] = useState("");
   const [bossInfoOpen, setBossInfoOpen] = useState(false);
   const mobType = snapshot.mobOrder[index]?.mobType || "zombie";
   const isMain = index === 0;
@@ -379,31 +378,28 @@ function MobCard({ index, snapshot, updateField, removeMob }: { index: number; s
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => updateField(index, field, clampNumberInput(event.target.value, min, max, { allowEmpty: true })),
   });
   const check = (field: string) => ({ checked: checked(snapshot, index, field), onChange: (event: React.ChangeEvent<HTMLInputElement>) => updateField(index, field, event.target.checked) });
-  const mobQuery = mobSearch.trim().toLowerCase();
-  const filteredMobGroups = MOB_GROUPS.map((group) => ({
-    ...group,
-    mobs: group.mobs.filter(([id, name]) => !mobQuery || id.toLowerCase().includes(mobQuery) || name.toLowerCase().includes(mobQuery)),
-  })).filter((group) => group.mobs.length > 0);
 
   return <div className={`mob-card ${isMain ? "main" : "passenger"}${collapsed ? " collapsed" : ""}`}>
-    <div className="mob-head" onClick={() => setCollapsed(!collapsed)}><span className="lvl-badge">{levelLabel}</span><span className="mob-title">{ALL_MOBS[mobType] || mobType} <small>{stackInfo}</small></span>{!isMain ? <button className="small danger" type="button" onClick={(event) => { event.stopPropagation(); removeMob(); }}>Удалить</button> : null}<span className="arrow">▼</span></div>
+    <div className="mob-head"><button className="mob-collapse" type="button" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}><span className="lvl-badge">{levelLabel}</span><span className="mob-title">{ALL_MOBS[mobType] || mobType} <small>{stackInfo}</small></span></button>{!isMain ? <button className="small danger" type="button" onClick={(event) => { event.stopPropagation(); removeMob(); }}>Удалить</button> : null}<span className="arrow">▼</span></div>
     <div className="mob-body">
-      <div className="section"><div className="section-title">1. Моб и имя</div><div className="grid-2">
-        <label><span className="lab">Вид моба</span><div className="mob-picker"><input className="mob-search" type="text" value={mobSearch} onChange={(event) => setMobSearch(event.target.value)} placeholder="Поиск по названию (рус/англ)..." /><select {...input("mob")}>{filteredMobGroups.map((group) => <optgroup label={group.name} key={group.name}>{group.mobs.map(([id, name]) => <option key={id} value={id}>{name} ({id})</option>)}</optgroup>)}</select></div></label>
+      <div className="section"><div className="section-title">Моб</div><div className="grid-2">
+        <SearchPicker label="Вид моба" value={mobType} groups={MOB_GROUPS.map(group => ({ name: group.name, options: group.mobs }))} onChange={value => updateField(index, "mob", value)} />
+      </div></div>
+      <EditorSection title="Имя и оформление" summary={read(snapshot, index, "name") || "Без имени"}><div className="grid-2">
         <label><span className="lab">Имя</span><input type="text" {...input("name")} placeholder="например: Босс" /></label>
         <label><span className="lab">Цвет имени</span><select {...input("name-color")}>{NAME_COLORS.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select></label>
-      </div><div className="grid-3" style={{ marginTop: 8 }}><label className="check-row"><input type="checkbox" {...check("name-bold")} /> Жирное</label><label className="check-row"><input type="checkbox" {...check("name-italic")} /> Курсив</label><label className="check-row"><input type="checkbox" {...check("name-visible")} /> Всегда видно</label></div></div>
+      </div><div className="grid-3" style={{ marginTop: 8 }}><label className="check-row"><input type="checkbox" {...check("name-bold")} /> Жирное</label><label className="check-row"><input type="checkbox" {...check("name-italic")} /> Курсив</label><label className="check-row"><input type="checkbox" {...check("name-visible")} /> Всегда видно</label></div></EditorSection>
 
       {mobType === "horse" ? <div className="section"><label><span className="lab">Окрас лошади</span><select {...input("horse-coat")}><option value="">По умолчанию</option>{["Белая", "Кремовая", "Рыжая", "Гнедая", "Вороная", "Серая", "Тёмно-гнедая"].map((name, i) => <option value={String(i)} key={i}>{name}</option>)}</select></label></div> : null}
 
-      <div className="section"><div className="section-title">2. Характеристики</div><div className="grid-3">{[
+      <EditorSection title="Характеристики" summary={["health", "speed", "armor", "attack", "kb", "scale"].filter(field => read(snapshot, index, field)).map(field => ({ health: "HP", speed: "Скорость", armor: "Броня", attack: "Урон", kb: "Отбрасывание", scale: "Масштаб" }[field] + ": " + read(snapshot, index, field))).join(" · ") || "По умолчанию"}><div className="grid-3">{[
         ["health", "HP (1-1024)", 1, 1024],
         ["speed", "Скорость (0-2)", 0, 2],
         ["armor", "Броня (0-30)", 0, 30],
         ["attack", "Урон атаки", 0, 2048],
         ["kb", "Сопр. отбрасыв.", 0, 1],
         ["scale", "Масштаб", 0.0625, 16],
-      ].map(([field, label, min, max]) => <label key={String(field)}><span className="lab">{label}</span><input type="number" min={Number(min)} max={Number(max)} {...numberInput(String(field), Number(min), Number(max))} placeholder="по умолч." /></label>)}</div></div>
+      ].map(([field, label, min, max]) => <label key={String(field)}><span className="lab">{label}</span><input type="number" min={Number(min)} max={Number(max)} {...numberInput(String(field), Number(min), Number(max))} placeholder="по умолч." /></label>)}</div></EditorSection>
 
       {isFireball(mobType) ? <div className="section fireball-section"><div className="section-title">Фаерболл</div><div className="grid-3">{[
         ["power-x", "Power X", "0.0", -1000000, 1000000],
@@ -412,10 +408,10 @@ function MobCard({ index, snapshot, updateField, removeMob }: { index: number; s
         ["explosion-power", "Мощность взрыва", "1", 0, 255],
       ].map(([field, label, placeholder, min, max]) => <label key={String(field)}><span className="lab">{label}</span><input type="number" min={Number(min)} max={Number(max)} {...numberInput(String(field), Number(min), Number(max))} placeholder={String(placeholder)} /></label>)}</div></div> : null}
 
-      <div className="section"><div className="section-title">3. Особенности</div><div className="grid-3">{[["baby", "Ребёнок"], ["invul", "Неуязвимый"], ["invisible", "Невидимый"], ["silent", "Бесшумный"], ["noai", "Без ИИ"], ["noburn", "Не горит на солнце"], ["onfire", "Постоянно горит"], ["glow", "Светится контуром"], ["nogravity", "Без гравитации"], ["persist", "Не исчезает"], ["nobreath", "Не задыхается"]].map(([field, label]) => <label className="check-row" key={field}><input type="checkbox" {...check(field)} /> {label}</label>)}<label className="check-row boss-toggle"><input type="checkbox" {...check("boss")} /> Босс <button type="button" className="info-dot" aria-expanded={bossInfoOpen} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setBossInfoOpen(!bossInfoOpen); }}>i</button></label>{bossInfoOpen ? <div className="boss-info">Галочка добавляет мобу тег <code>boss</code>. Чтобы на сервере появилась bossbar, установи мод <a href="https://github.com/egorka-dino/minecraft-mod-mob-bossbar/releases/" target="_blank" rel="noopener noreferrer">minecraft-mod-mob-bossbar</a> на сервер.</div> : null}</div></div>
+      <EditorSection title="Особенности" summary={`${["baby", "invul", "invisible", "silent", "noai", "noburn", "onfire", "glow", "nogravity", "persist", "nobreath", "boss"].filter(field => checked(snapshot, index, field)).length} включено`}><div className="grid-3">{[["baby", "Ребёнок"], ["invul", "Неуязвимый"], ["invisible", "Невидимый"], ["silent", "Бесшумный"], ["noai", "Без ИИ"], ["noburn", "Не горит на солнце"], ["onfire", "Постоянно горит"], ["glow", "Светится контуром"], ["nogravity", "Без гравитации"], ["persist", "Не исчезает"], ["nobreath", "Не задыхается"]].map(([field, label]) => <label className="check-row" key={field}><input type="checkbox" {...check(field)} /> {label}</label>)}<label className="check-row boss-toggle"><input type="checkbox" {...check("boss")} /> Босс <button type="button" className="info-dot" aria-expanded={bossInfoOpen} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setBossInfoOpen(!bossInfoOpen); }}>i</button></label>{bossInfoOpen ? <div className="boss-info">Галочка добавляет мобу тег <code>boss</code>. Чтобы на сервере появилась bossbar, установи мод <a href="https://github.com/egorka-dino/minecraft-mod-mob-bossbar/releases/" target="_blank" rel="noopener noreferrer">minecraft-mod-mob-bossbar</a> на сервер.</div> : null}</div></EditorSection>
 
-      <div className="section"><div className="section-title">4. Снаряжение и зачарования</div>{SLOTS.map((slot) => <SlotEditor key={slot.key} index={index} slot={slot} snapshot={snapshot} updateField={updateField} />)}</div>
-      <div className="section"><div className="section-title">5. Эффекты зелий</div><details><summary>Открыть список эффектов</summary><div className="enchant-list">{EFFECTS.map(([id, name]) => <div className="enchant-row" style={{ gridTemplateColumns: "1fr 50px 70px" }} key={id}><label><input type="checkbox" {...check(`eff-${id}`)} /> {name}</label><input type="number" min="0" max="255" value={read(snapshot, index, `effamp-${id}`) || "0"} onChange={(event) => updateField(index, `effamp-${id}`, clampNumberInput(event.target.value, 0, 255, { integer: true }))} /><input type="number" min="1" max="1000000" value={read(snapshot, index, `effdur-${id}`) || "999999"} onChange={(event) => updateField(index, `effdur-${id}`, clampNumberInput(event.target.value, 1, 1000000, { integer: true }))} /></div>)}</div></details></div>
+      <div className="section"><div className="section-title">Снаряжение</div><label className="kit-picker"><span className="lab">Надеть полный комплект</span><select aria-label="Надеть полный комплект" value="" onChange={event => { if (event.target.value) equipKit(event.target.value); }}><option value="">Выбери материал…</option>{[["leather", "Кожа"], ["chainmail", "Кольчуга"], ["iron", "Железо"], ["golden", "Золото"], ["diamond", "Алмаз"], ["netherite", "Незерит"]].map(([value, name]) => <option value={value} key={value}>{name}</option>)}</select></label><div className="equipment-slots">{SLOTS.map((slot) => <SlotEditor key={slot.key} index={index} slot={slot} snapshot={snapshot} updateField={updateField} />)}</div></div>
+      <EditorSection title="Эффекты зелий" summary={EFFECTS.filter(([id]) => checked(snapshot, index, `eff-${id}`)).map(([, name]) => name).join(", ") || "Без эффектов"}><div className="enchant-list">{EFFECTS.map(([id, name]) => <div className="enchant-row" style={{ gridTemplateColumns: "1fr 50px 70px" }} key={id}><label><input type="checkbox" {...check(`eff-${id}`)} /> {name}</label><input type="number" min="0" max="255" value={read(snapshot, index, `effamp-${id}`) || "0"} onChange={(event) => updateField(index, `effamp-${id}`, clampNumberInput(event.target.value, 0, 255, { integer: true }))} /><input type="number" min="1" max="1000000" value={read(snapshot, index, `effdur-${id}`) || "999999"} onChange={(event) => updateField(index, `effdur-${id}`, clampNumberInput(event.target.value, 1, 1000000, { integer: true }))} /></div>)}</div></EditorSection>
     </div>
   </div>;
 }
@@ -438,7 +434,7 @@ function SlotEditor({ index, slot, snapshot, updateField }: { index: number; slo
     if (nextShieldLayer === undefined) return;
     updateField(index, `shieldpat-${slot.key}-${nextShieldLayer}`, "stripe_center");
   };
-  return <div className="slot"><div className="slot-title">{slot.label}</div><div className="slot-grid"><label><span className="lab">Предмет</span><select className="slot-item" value={itemId} onChange={(event) => updateField(index, `slot-${slot.key}`, event.target.value)}><option value="">— пусто —</option>{slot.items.map((item) => <option key={item} value={item}>{ITEM_NAMES[item as keyof typeof ITEM_NAMES] || item}</option>)}</select></label><label><span className="lab">Кол-во</span><input type="number" min="1" max="99" value={read(snapshot, index, `count-${slot.key}`) || "1"} onChange={(event) => updateField(index, `count-${slot.key}`, clampNumberInput(event.target.value, 1, 99, { integer: true }))} /></label><label><span className="lab">Шанс выпадения</span><input type="number" min="0" max="1" step="0.1" value={read(snapshot, index, `drop-${slot.key}`) || "0"} onChange={(event) => updateField(index, `drop-${slot.key}`, clampNumberInput(event.target.value, 0, 1))} /></label></div>{itemId.startsWith("leather_") ? <label className="check-row"><input type="checkbox" checked={checked(snapshot, index, `dyeon-${slot.key}`)} onChange={(event) => updateField(index, `dyeon-${slot.key}`, event.target.checked)} /> Покрасить кожу <input type="color" value={read(snapshot, index, `dye-${slot.key}`) || "#a06540"} onChange={(event) => updateField(index, `dye-${slot.key}`, event.target.value)} /></label> : null}{canHaveTrim(itemId) ? <div className="trim-picker"><label className="check-row"><input type="checkbox" checked={checked(snapshot, index, `trimon-${slot.key}`)} onChange={(event) => updateField(index, `trimon-${slot.key}`, event.target.checked)} /> Отделка брони</label><div className="grid-2"><select value={read(snapshot, index, `trimmat-${slot.key}`) || "iron"} onChange={(event) => updateField(index, `trimmat-${slot.key}`, event.target.value)}>{TRIM_MATERIALS.map(([value, name]) => <option key={value} value={value}>{name} ({value})</option>)}</select><select value={read(snapshot, index, `trimpat-${slot.key}`) || "sentry"} onChange={(event) => updateField(index, `trimpat-${slot.key}`, event.target.value)}>{TRIM_PATTERNS.map(([value, name]) => <option key={value} value={value}>{name} ({value})</option>)}</select></div></div> : null}{supportsBannerPatterns(itemId) ? <div className="shield-picker"><label className="check-row"><input type="checkbox" checked={checked(snapshot, index, `shieldon-${slot.key}`)} onChange={(event) => updateField(index, `shieldon-${slot.key}`, event.target.checked)} /> {itemId === "shield" ? "Узоры щита" : "Узоры флага"}</label>{checked(snapshot, index, `shieldon-${slot.key}`) ? <><label><span className="lab">Базовый цвет</span><select value={read(snapshot, index, `shieldbase-${slot.key}`) || "white"} onChange={(event) => updateField(index, `shieldbase-${slot.key}`, event.target.value)}>{DYE_COLORS.map(([value, name]) => <option key={value} value={value}>{name} ({value})</option>)}</select></label><ShieldColorPicker value={read(snapshot, index, `shieldbase-${slot.key}`) || "white"} onChange={(value) => updateField(index, `shieldbase-${slot.key}`, value)} /><div className="shield-layers">{visibleShieldLayers.map(({ layerIndex }) => <div className="shield-layer" key={layerIndex}><span className="shield-layer-index">{layerIndex + 1}</span><select value={read(snapshot, index, `shieldpat-${slot.key}-${layerIndex}`) || "stripe_center"} onChange={(event) => updateField(index, `shieldpat-${slot.key}-${layerIndex}`, event.target.value)}>{BANNER_PATTERNS.map(([value, name]) => <option key={value} value={value}>{name} ({value})</option>)}</select><div className="shield-layer-color"><select value={read(snapshot, index, `shieldcolor-${slot.key}-${layerIndex}`) || "black"} onChange={(event) => updateField(index, `shieldcolor-${slot.key}-${layerIndex}`, event.target.value)}>{DYE_COLORS.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select><ShieldColorPicker value={read(snapshot, index, `shieldcolor-${slot.key}-${layerIndex}`) || "black"} onChange={(value) => updateField(index, `shieldcolor-${slot.key}-${layerIndex}`, value)} /></div><button className="small danger" type="button" onClick={() => updateField(index, `shieldpat-${slot.key}-${layerIndex}`, "")}>×</button></div>)}</div>{nextShieldLayer !== undefined ? <button className="small info" type="button" onClick={addShieldLayer}>+ Добавить слой</button> : <p className="hint">Максимум 16 слоёв.</p>}</> : null}</div> : null}<details><summary>Зачарования {enchants.length ? "" : "(выбери предмет сначала)"}</summary><div className="enchant-list">{enchants.length ? enchants.map((enchant) => <div className="enchant-row" key={enchant.id}><label><input type="checkbox" checked={checked(snapshot, index, `ench-${slot.key}-${enchant.id}`)} onChange={(event) => updateField(index, `ench-${slot.key}-${enchant.id}`, event.target.checked)} /> {enchant.name} <span style={{ color: "var(--muted)", fontSize: 10 }}>(обычно {enchant.max})</span></label><input type="number" min="1" max={COMMAND_LEVEL_MAX} value={read(snapshot, index, `enchlvl-${slot.key}-${enchant.id}`) || enchant.max} onChange={(event) => updateField(index, `enchlvl-${slot.key}-${enchant.id}`, clampNumberInput(event.target.value, 1, COMMAND_LEVEL_MAX, { integer: true }))} /></div>) : <p className="hint">Для этого предмета зачарований нет.</p>}</div></details></div>;
+  return <EditorSection title={slot.label} summary={itemId ? ITEM_NAMES[itemId as keyof typeof ITEM_NAMES] || itemId : "+ Добавить предмет"}><div className="slot-grid"><SearchPicker label={`Предмет: ${slot.label}`} value={itemId} groups={[{ name: "Снаряжение", options: [["", "Пустой слот"], ...slot.items.map(item => [item, ITEM_NAMES[item as keyof typeof ITEM_NAMES] || item] as const)] }]} onChange={value => updateField(index, `slot-${slot.key}`, value)} />{itemId ? <><label><span className="lab">Кол-во</span><input type="number" min="1" max="99" value={read(snapshot, index, `count-${slot.key}`) || "1"} onChange={(event) => updateField(index, `count-${slot.key}`, clampNumberInput(event.target.value, 1, 99, { integer: true }))} /></label><label><span className="lab">Шанс выпадения, %</span><input type="number" min="0" max="100" step="1" value={Math.round(Number(read(snapshot, index, `drop-${slot.key}`) || "0") * 100)} onChange={event => updateField(index, `drop-${slot.key}`, String(Number(clampNumberInput(event.target.value, 0, 100)) / 100))} /></label></> : null}</div>{itemId.startsWith("leather_") ? <label className="check-row"><input type="checkbox" checked={checked(snapshot, index, `dyeon-${slot.key}`)} onChange={(event) => updateField(index, `dyeon-${slot.key}`, event.target.checked)} /> Покрасить кожу <input type="color" value={read(snapshot, index, `dye-${slot.key}`) || "#a06540"} onChange={(event) => updateField(index, `dye-${slot.key}`, event.target.value)} /></label> : null}{canHaveTrim(itemId) ? <div className="trim-picker"><label className="check-row"><input type="checkbox" checked={checked(snapshot, index, `trimon-${slot.key}`)} onChange={(event) => updateField(index, `trimon-${slot.key}`, event.target.checked)} /> Отделка брони</label><div className="grid-2"><select value={read(snapshot, index, `trimmat-${slot.key}`) || "iron"} onChange={(event) => updateField(index, `trimmat-${slot.key}`, event.target.value)}>{TRIM_MATERIALS.map(([value, name]) => <option key={value} value={value}>{name} ({value})</option>)}</select><select value={read(snapshot, index, `trimpat-${slot.key}`) || "sentry"} onChange={(event) => updateField(index, `trimpat-${slot.key}`, event.target.value)}>{TRIM_PATTERNS.map(([value, name]) => <option key={value} value={value}>{name} ({value})</option>)}</select></div></div> : null}{supportsBannerPatterns(itemId) ? <div className="shield-picker"><label className="check-row"><input type="checkbox" checked={checked(snapshot, index, `shieldon-${slot.key}`)} onChange={(event) => updateField(index, `shieldon-${slot.key}`, event.target.checked)} /> {itemId === "shield" ? "Узоры щита" : "Узоры флага"}</label>{checked(snapshot, index, `shieldon-${slot.key}`) ? <><label><span className="lab">Базовый цвет</span><select value={read(snapshot, index, `shieldbase-${slot.key}`) || "white"} onChange={(event) => updateField(index, `shieldbase-${slot.key}`, event.target.value)}>{DYE_COLORS.map(([value, name]) => <option key={value} value={value}>{name} ({value})</option>)}</select></label><ShieldColorPicker value={read(snapshot, index, `shieldbase-${slot.key}`) || "white"} onChange={(value) => updateField(index, `shieldbase-${slot.key}`, value)} /><div className="shield-layers">{visibleShieldLayers.map(({ layerIndex }) => <div className="shield-layer" key={layerIndex}><span className="shield-layer-index">{layerIndex + 1}</span><select value={read(snapshot, index, `shieldpat-${slot.key}-${layerIndex}`) || "stripe_center"} onChange={(event) => updateField(index, `shieldpat-${slot.key}-${layerIndex}`, event.target.value)}>{BANNER_PATTERNS.map(([value, name]) => <option key={value} value={value}>{name} ({value})</option>)}</select><div className="shield-layer-color"><select value={read(snapshot, index, `shieldcolor-${slot.key}-${layerIndex}`) || "black"} onChange={(event) => updateField(index, `shieldcolor-${slot.key}-${layerIndex}`, event.target.value)}>{DYE_COLORS.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select><ShieldColorPicker value={read(snapshot, index, `shieldcolor-${slot.key}-${layerIndex}`) || "black"} onChange={(value) => updateField(index, `shieldcolor-${slot.key}-${layerIndex}`, value)} /></div><button className="small danger" type="button" onClick={() => updateField(index, `shieldpat-${slot.key}-${layerIndex}`, "")}>×</button></div>)}</div>{nextShieldLayer !== undefined ? <button className="small info" type="button" onClick={addShieldLayer}>+ Добавить слой</button> : <p className="hint">Максимум 16 слоёв.</p>}</> : null}</div> : null}{itemId && enchants.length ? <details><summary>Зачарования</summary><div className="enchant-list">{enchants.length ? enchants.map((enchant) => <div className="enchant-row" key={enchant.id}><label><input type="checkbox" checked={checked(snapshot, index, `ench-${slot.key}-${enchant.id}`)} onChange={(event) => updateField(index, `ench-${slot.key}-${enchant.id}`, event.target.checked)} /> {enchant.name} <span style={{ color: "var(--muted)", fontSize: 10 }}>(обычно {enchant.max})</span></label><input type="number" min="1" max={COMMAND_LEVEL_MAX} aria-label={`Уровень: ${enchant.name}`} value={read(snapshot, index, `enchlvl-${slot.key}-${enchant.id}`) || (checked(snapshot, index, `ench-${slot.key}-${enchant.id}`) ? "1" : enchant.max)} onChange={(event) => updateField(index, `enchlvl-${slot.key}-${enchant.id}`, clampNumberInput(event.target.value, 1, COMMAND_LEVEL_MAX, { integer: true }))} /></div>) : <p className="hint">Для этого предмета зачарований нет.</p>}</div></details> : null}</EditorSection>;
 }
 
 function Preview({ snapshot }: { snapshot: SummonSnapshot }) {

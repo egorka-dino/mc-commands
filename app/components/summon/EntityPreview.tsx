@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { buildPreviewScene, placePreviewEntity, isPreviewSupported, PREVIEW_ROOT, PREVIEW_VERSION, type SceneEntity } from "./preview-scene";
 import { DYE_COLORS, type SummonSnapshot } from "./data";
+import { PreviewLoading } from "../editor/PreviewLoading";
 import { createPreviewMaterial } from "./preview-material";
 
 type CapturedMesh = { vertices: number[][]; texture?: string; pipeline: string };
@@ -111,12 +112,15 @@ export default function EntityPreview({ snapshot }: { snapshot: SummonSnapshot }
   const host = useRef<HTMLDivElement>(null); const viewer = useRef<Viewer | null>(null);
   const [sceneWarnings,setSceneWarnings] = useState<string[]>([]);
   const [ready,setReady] = useState(false); const [status,setStatus] = useState("Загрузка 3D…");
+  const [finishedSceneKey, setFinishedSceneKey] = useState<string | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
   const inputs = buildPreviewScene(snapshot); const sceneKey = JSON.stringify(inputs);
+  const loading = !unavailable && finishedSceneKey !== sceneKey;
   const sceneInput = useMemo(() => JSON.parse(sceneKey) as SceneEntity[],[sceneKey]);
   useEffect(() => {
     const element = host.current; if (!element) return;
     let renderer: THREE.WebGLRenderer;
-    try { renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); } catch { setStatus("3D недоступно: браузер не поддерживает WebGL. Ниже сохранён текстовый предпросмотр."); return; }
+    try { renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); } catch { setUnavailable(true); setStatus("3D недоступно: браузер не поддерживает WebGL. Ниже сохранён текстовый предпросмотр."); return; }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio,2)); element.append(renderer.domElement);
     renderer.domElement.setAttribute("aria-label","3D-модель Minecraft. Перетащите для вращения, используйте колесо для приближения."); renderer.domElement.setAttribute("role","img");
     const scene = new THREE.Scene(); scene.add(new THREE.AmbientLight(0xffffff,2));
@@ -125,7 +129,7 @@ export default function EntityPreview({ snapshot }: { snapshot: SummonSnapshot }
     const controls = new OrbitControls(camera,renderer.domElement); controls.minDistance = 0.15; controls.maxDistance = 10000; controls.enablePan = true;
     const render = () => { scene.traverse(object => { if(object.userData.previewBillboard)object.quaternion.copy(camera.quaternion); }); renderer.render(scene,camera); }; controls.addEventListener("change",render);
     const resize = new ResizeObserver(() => { const {width,height} = element.getBoundingClientRect(); if (!width || !height) return; renderer.setSize(width,height,false); camera.aspect = width/height; camera.updateProjectionMatrix(); render(); }); resize.observe(element);
-    const lost = (e: Event) => { e.preventDefault(); setStatus("Графический контекст потерян. Доступен текстовый предпросмотр; перезагрузите страницу для 3D."); };
+    const lost = (e: Event) => { e.preventDefault(); setUnavailable(true); setStatus("Графический контекст потерян. Доступен текстовый предпросмотр; перезагрузите страницу для 3D."); };
     renderer.domElement.addEventListener("webglcontextlost",lost);
     viewer.current = { scene,camera,controls,render }; setReady(true);
     return () => { viewer.current = null; resize.disconnect(); controls.dispose(); renderer.domElement.removeEventListener("webglcontextlost",lost); dispose(scene); renderer.dispose(); renderer.domElement.remove(); };
@@ -157,19 +161,22 @@ export default function EntityPreview({ snapshot }: { snapshot: SummonSnapshot }
         const zoom = v!.framedDistance ? direction.length() / v!.framedDistance : 1;
         v!.framedDistance = distance;
         direction.normalize(); v!.camera.position.copy(center).addScaledVector(direction,distance * zoom); v!.controls.target.copy(center); v!.controls.update(); v!.framedDistance=v!.camera.position.distanceTo(v!.controls.target)/zoom; v!.render();
-        setSceneWarnings(warnings); setStatus("Модель обновлена");
+        setSceneWarnings(warnings); setStatus("Модель обновлена"); setFinishedSceneKey(sceneKey);
       } catch (error) {
         dispose(assembly); if (cancelled) return;
         const old = v!.scene.getObjectByName("entities"); if (old) { v!.scene.remove(old); dispose(old); } v!.render();
-        setSceneWarnings([]); setStatus(`Не удалось обновить 3D${error instanceof Error ? `: ${error.message}` : ""}. Доступен текстовый предпросмотр.`);
+        setFinishedSceneKey(sceneKey); setSceneWarnings([]); setStatus(`Не удалось обновить 3D${error instanceof Error ? `: ${error.message}` : ""}. Доступен текстовый предпросмотр.`);
       }
     }
     void update(); return () => { cancelled = true; };
-  },[ready,sceneInput]);
+  },[ready,sceneInput,sceneKey]);
   return <dialog open ref={dialog} className="entity-preview" aria-labelledby={titleId} aria-modal={expanded} onCancel={event => { event.preventDefault(); if (expanded) toggleExpanded(); }}>
     <div className="entity-preview-header"><p id={titleId} className="hint">3D · Minecraft Java {PREVIEW_VERSION} · каталог конструктора</p><button ref={expandButton} type="button" className="small" aria-expanded={expanded} onClick={toggleExpanded}>{expanded ? "Свернуть" : "Развернуть"}</button></div>
-    <div className="entity-preview-canvas" ref={host} />
-    <p role="status" className="hint">{status}</p>
+    <div className="entity-preview-stage" aria-busy={loading}>
+      <div className="entity-preview-canvas" ref={host} />
+      {loading ? <div className="preview-loading-overlay"><PreviewLoading updating={finishedSceneKey !== null} /></div> : null}
+    </div>
+    <p role={loading ? undefined : "status"} className="hint">{status}</p>
     <div className="entity-preview-controls"><button type="button" className="small" onClick={() => { const v=viewer.current; if(v) { v.camera.position.sub(v.controls.target).multiplyScalar(0.8).add(v.controls.target); v.controls.update(); v.render(); } }}>Приблизить</button><button type="button" className="small" onClick={() => { const v=viewer.current; if(v) { v.camera.position.sub(v.controls.target).multiplyScalar(1.25).add(v.controls.target); v.controls.update(); v.render(); } }}>Отдалить</button><button type="button" className="small" onClick={() => { const v=viewer.current; if(v) { const p=v.camera.position.clone().sub(v.controls.target).applyAxisAngle(new THREE.Vector3(0,1,0),Math.PI/4); v.camera.position.copy(v.controls.target).add(p); v.controls.update(); v.render(); } }}>Повернуть</button></div>
     <div className="entity-preview-notes"><p className="hint">Вращение — перетаскиванием, приближение — колесом или жестом. Показана статичная поза. Посадка использует точки крепления Minecraft; особые позы транспорта пока не воспроизводятся.</p>
     <details><summary>Ограничения 3D-предпросмотра</summary><p className="hint">Модели всех 94 сущностей каталога и 69 предметов экипировки извлечены из Minecraft Java 26.1.2. Слои брони и крепления предметов берутся из игрового рендерера. Облако эффекта состоит только из частиц. Анимации, чары, огонь, контур свечения и частицы пока не показаны. Щиты и флаги поддерживают узоры, броня — окраску и отделку. В этой версии Minecraft отделка на детской броне не отображается. Скины голов игроков из сети и ресурс-паки посетителя не загружаются.</p></details>

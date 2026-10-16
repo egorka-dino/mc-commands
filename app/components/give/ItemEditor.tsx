@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SearchPicker } from "../editor/SearchPicker";
+import { EditorSection } from "../editor/EditorSection";
+import { CommandResult } from "../editor/CommandResult";
 import { CommandAssistant } from "../command-assistant/CommandAssistant";
 import { ServerCommandExecutor } from "../ServerCommandExecutor";
 import {
@@ -57,7 +60,6 @@ const bannerPatterns = BANNER_PATTERNS as unknown as OptionPair[];
 const effects = EFFECTS as unknown as [string, string][];
 
 const favoriteStorageKey = "mc-give:favorites";
-const loreRows = [0, 1, 2, 3, 4];
 const foodRows = [0, 1, 2, 3, 4];
 const totemRows = [0, 1, 2];
 const randomNames = ["Сокровище шахтёра", "Подарок дракона", "Набор героя", "Талисман удачи", "Звёздная находка", "Запас путешественника", "Реликвия крепости", "Лут из данжа"];
@@ -121,7 +123,9 @@ function normalizeAiGiveSnapshot(snapshot: GiveSnapshot): GiveSnapshot {
 
 export function ItemEditor({ adminMode = false, showAiAssistant = false, initialSnapshot, onSnapshotChange }: Props) {
   const [snapshot, setSnapshot] = useState<GiveSnapshot>(() => initialSnapshot || defaultGiveSnapshot());
-  const [query, setQuery] = useState("");
+  const [undoSnapshot, setUndoSnapshot] = useState<GiveSnapshot | null>(null);
+  const [extraLoreRows, setExtraLoreRows] = useState(0);
+  const loreRowCount = Math.max(extraLoreRows, ...[0, 1, 2, 3, 4].map(i => snapshot.fields[`lore-${i}`] ? i + 1 : 0));
   const [aiSession, setAiSession] = useState(0);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [toast, setToast] = useState("");
@@ -133,13 +137,6 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
   const selectedItem = snapshot.itemId;
   const shouldShowAiAssistant = !adminMode || showAiAssistant;
   const enchants = useMemo(() => enchantsForItem(selectedItem), [selectedItem]);
-  const filteredGroups = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return itemGroups.map((group) => ({
-      ...group,
-      items: group.items.filter(([id, name]) => !q || id.toLowerCase().includes(q) || name.toLowerCase().includes(q)),
-    })).filter((group) => group.items.length);
-  }, [query]);
   const longCommand = command.length > 256;
   const autoTarget = itemSnapshot.targetCustom.trim() === "" && itemSnapshot.target === "@s" && longCommand;
   const potionMods = isPotion(selectedItem) ? potionOptions(selectedItem) : { hasLong: false, hasStrong: false };
@@ -149,6 +146,7 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
   useEffect(() => {
     if (initialSnapshot && JSON.stringify(initialSnapshot) !== JSON.stringify(itemSnapshotRef.current)) {
       setSnapshot(initialSnapshot);
+      setUndoSnapshot(null);
       setAiSession(value => value + 1);
     }
   }, [initialSnapshot]);
@@ -156,12 +154,6 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
   useEffect(() => {
     onSnapshotChange?.(itemSnapshot);
   }, [itemSnapshot, onSnapshotChange]);
-
-  useEffect(() => {
-    if (!filteredGroups.length) return;
-    const visible = filteredGroups.some((group) => group.items.some(([id]) => id === selectedItem));
-    if (!visible) onItemChange(filteredGroups[0].items[0][0]);
-  }, [filteredGroups, selectedItem]);
 
   useEffect(() => {
     if (adminMode) return;
@@ -189,7 +181,14 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
   }
 
   function setField(field: string, value: GiveFieldValue) {
-    setSnapshot((current) => ({ ...current, fields: { ...current.fields, [field]: value } }));
+    setSnapshot(current => {
+      const fields = { ...current.fields, [field]: value };
+      if (field.startsWith("ench-") && value === true) {
+        const id = field.slice(5);
+        fields[`enchlvl-${id}`] ??= String(enchants.find(enchant => enchant.id === id)?.max || 1);
+      }
+      return { ...current, fields };
+    });
   }
 
   function field(field: string, fallback = "") {
@@ -212,11 +211,24 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
     patch({ itemId, potionModifier });
   }
 
+  function replaceSnapshot(next: GiveSnapshot) {
+    setUndoSnapshot(snapshot);
+    setSnapshot(next);
+  }
+
+  function undoReplacement() {
+    if (!undoSnapshot) return;
+    setSnapshot(undoSnapshot);
+    setUndoSnapshot(null);
+    setAiSession(value => value + 1);
+    showToast("Предыдущая сборка восстановлена");
+  }
+
   function resetAll() {
     if (!window.confirm("Сбросить все параметры и историю AI-помощника?")) return;
-    setQuery("");
     setAiSession(value => value + 1);
-    setSnapshot(defaultGiveSnapshot());
+    replaceSnapshot(defaultGiveSnapshot());
+    setExtraLoreRows(0);
   }
 
   function copy(text = command) {
@@ -228,8 +240,7 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
   }
 
   function applyAiSnapshot(next: GiveSnapshot) {
-    setQuery("");
-    setSnapshot(next);
+    replaceSnapshot(next);
   }
 
   function addFavorite() {
@@ -242,10 +253,9 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
 
   function loadFavorite(id: string) {
     const favorite = favorites.find((item) => item.id === id);
-    if (!favorite || !window.confirm(`Заменить текущие параметры на «${favorite.name}»?`)) return;
+    if (!favorite) return;
     setAiSession(value => value + 1);
-    setQuery("");
-    setSnapshot({
+    replaceSnapshot({
       ...defaultGiveSnapshot(),
       ...favorite,
       fields: { ...defaultGiveSnapshot().fields, ...(favorite.fields || {}) },
@@ -342,77 +352,50 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
         next.fields[`totem-eff-dur-${i}`] = String(pick([200, 600, 900, 1200]));
       });
     }
-    setQuery("");
     setAiSession(value => value + 1);
-    setSnapshot(next);
+    replaceSnapshot(next);
     showToast("Случайный предмет готов");
   }
 
   return (
-    <>
+    <div className={`generator-layout${adminMode ? " admin-editor" : ""}`}>
+      <div className="editor-main">
+      {shouldShowAiAssistant ? <EditorSection title="Описать словами" summary="AI-помощник" open><CommandAssistant key={aiSession} mode="give" snapshot={itemSnapshot} normalize={next => adminMode ? asLibraryItemSnapshot(normalizeAiGiveSnapshot(next)) : normalizeAiGiveSnapshot(next)} adminMode={adminMode} onApply={applyAiSnapshot} /></EditorSection> : null}
+
       <section className="panel">
-        <h2>{adminMode ? "Предмет" : "Цель и предмет"}</h2>
+        <h2>Выбери предмет</h2>
+        <SearchPicker label="Предмет" value={selectedItem} groups={itemGroups.map(group => ({ name: group.name, options: group.items }))} onChange={onItemChange} />
         {!adminMode ? (
           <div className="grid-2" style={{ marginBottom: 12 }}>
-            <label>
+            <div>
               <span className="lab">Кому выдать</span>
-              <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: 8 }}>
-                <select value={snapshot.target} onChange={(event) => patch({ target: event.target.value })}>
-                  <option value="@s">@s (себе)</option>
-                  <option value="@p">@p (ближайший)</option>
-                  <option value="@a">@a (всем)</option>
-                  <option value="@r">@r (случайный)</option>
+              <div style={{ display: "grid", gridTemplateColumns: "130px 1fr", gap: 8 }}>
+                <select aria-label="Кому выдать" value={snapshot.target} onChange={(event) => patch({ target: event.target.value, targetCustom: "" })}>
+                  <option value="@s">Себе</option>
+                  <option value="@p">Ближайшему</option>
+                  <option value="@a">Всем</option>
+                  <option value="@r">Случайному</option>
                 </select>
-                <input type="text" value={snapshot.targetCustom} onChange={(event) => patch({ targetCustom: event.target.value })} placeholder="или свой селектор: @a[team=red]" />
+                <details className="custom-target" open={snapshot.targetCustom ? true : undefined}><summary>Другой получатель</summary><input aria-label="Ник или селектор" type="text" value={snapshot.targetCustom} onChange={event => patch({ targetCustom: event.target.value })} placeholder="Ник или @a[team=red]" /></details>
               </div>
-            </label>
+            </div>
             <label><span className="lab">Количество (1-64)</span><input type="number" min="1" max="64" value={snapshot.count} onChange={(event) => patch({ count: clampNumberInput(event.target.value, 1, 64, { integer: true }) })} /></label>
+            <div className="quick-count" aria-label="Быстро выбрать количество">{[1, 16, 64].map(count => <button className="small sec" type="button" key={count} onClick={() => patch({ count: String(count) })}>{count} шт.</button>)}</div>
           </div>
         ) : null}
-        <label>
-          <span className="lab">Предмет</span>
-          <div className="item-picker">
-            <input className="item-search" type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по названию (рус/англ)..." />
-            <select value={selectedItem} onChange={(event) => onItemChange(event.target.value)}>
-              {filteredGroups.map((group: { name: string; items: [string, string][] }) => (
-                <optgroup key={group.name} label={group.name}>
-                  {group.items.map(([id, name]) => <option key={id} value={id}>{name} ({id})</option>)}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-        </label>
-      </section>
 
-      {shouldShowAiAssistant ? <CommandAssistant key={aiSession} mode="give" snapshot={itemSnapshot} normalize={next => adminMode ? asLibraryItemSnapshot(normalizeAiGiveSnapshot(next)) : normalizeAiGiveSnapshot(next)} adminMode={adminMode} onApply={applyAiSnapshot} /> : null}
-
-      {!adminMode ? <section className="panel">
-        <div className="fav-header"><h2>Коллекция</h2><button className="small sec" type="button" onClick={addFavorite}>Сохранить</button></div>
-        {favorites.length ? (
-          <div className="favorites-grid">
-            {favorites.map((item) => <div className="fav-card" key={item.id}>
-              <div className="fav-name">{item.name}</div>
-              <div className="fav-sub">{ALL_ITEMS[item.itemId] || item.itemId || "?"}</div>
-              <div className="fav-actions">
-                <button className="small" type="button" onClick={() => loadFavorite(item.id)}>Загрузить</button>
-                <button className="small sec" type="button" onClick={() => renameFavorite(item.id)}>Имя</button>
-                <button className="small info" type="button" onClick={() => copy(item._lastCmd || buildGiveCommand(item))}>Копия</button>
-                <button className="small danger" type="button" onClick={() => removeFavorite(item.id)}>X</button>
-              </div>
-            </div>)}
-          </div>
-        ) : <p className="empty-favs">Пока пусто. Выбери предмет и нажми Сохранить</p>}
-      </section> : null}
-
-      <section className="panel random-panel">
-        <button className="random" type="button" onClick={randomizeGive}>Случайно</button>
-        <span className="hint">Собрать случайный предмет с подходящим количеством, именем, лором, чарами и особыми компонентами.</span>
       </section>
 
       <section className="panel">
-        <h2>Параметры предмета</h2>
-        <div className="section">
-          <div className="section-title">1. Имя и лор</div>
+        <h2>Настрой предмет</h2>
+        {enchants.length ? <div className="section"><div className="section-title">Зачарования</div><div className="enchant-list">
+          {enchants.map((ench: { id: string; name: string; max: number }) => <div className="enchant-row" key={ench.id}>
+            <CheckField label={`${ench.name} (обычно ${ench.max})`} checked={checked(`ench-${ench.id}`)} onChange={(value) => setField(`ench-${ench.id}`, value)} />
+            <input type="number" min="1" max={COMMAND_LEVEL_MAX} aria-label={`Уровень: ${ench.name}`} value={field(`enchlvl-${ench.id}`, checked(`ench-${ench.id}`) ? "1" : String(ench.max))} onChange={(event) => setField(`enchlvl-${ench.id}`, clampNumberInput(event.target.value, 1, COMMAND_LEVEL_MAX, { integer: true }))} />
+          </div>)}
+        </div></div> : null}
+
+        <EditorSection title="Имя и описание" summary={field("name") || "Без имени"}>
           <div className="grid-2" style={{ marginBottom: 8 }}>
             <label><span className="lab">Кастомное имя</span><input type="text" value={field("name")} onChange={(event) => setField("name", event.target.value)} placeholder="оставь пустым - без имени" /></label>
             <SelectField label="Цвет имени" value={field("name-color")} onChange={(value) => setField("name-color", value)} options={nameColors} />
@@ -421,20 +404,15 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
             <CheckField label="Жирное" checked={checked("name-bold")} onChange={(value) => setField("name-bold", value)} />
             <CheckField label="Курсив" checked={checked("name-italic")} onChange={(value) => setField("name-italic", value)} />
           </div>
-          <div className="section-title">Лор (до 5 строк)</div>
-          {loreRows.map((i) => <div className="lore-row" key={i}>
-            <input type="text" value={field(`lore-${i}`)} onChange={(event) => setField(`lore-${i}`, event.target.value)} placeholder={`Строка ${i + 1} лора`} />
+          <div className="section-title">Описание (лор, до 5 строк)</div>
+          {Array.from({ length: loreRowCount }, (_, i) => i).map((i) => <div className="lore-row" key={i}>
+            <input type="text" value={field(`lore-${i}`)} onChange={(event) => setField(`lore-${i}`, event.target.value)} aria-label={`Описание, строка ${i + 1}`} placeholder={`Строка ${i + 1} описания`} />
             <select value={field(`lore-color-${i}`)} onChange={(event) => setField(`lore-color-${i}`, event.target.value)}>{nameColors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
           </div>)}
-        </div>
+          {loreRowCount < 5 ? <button className="small sec" type="button" onClick={() => setExtraLoreRows(loreRowCount + 1)}>+ Добавить строку</button> : null}
+        </EditorSection>
 
-        {enchants.length ? <div className="section"><div className="section-title">2. Зачарования</div><div className="enchant-list">
-          {enchants.map((ench: { id: string; name: string; max: number }) => <div className="enchant-row" key={ench.id}>
-            <CheckField label={`${ench.name} (обычно ${ench.max})`} checked={checked(`ench-${ench.id}`)} onChange={(value) => setField(`ench-${ench.id}`, value)} />
-            <input type="number" min="1" max={COMMAND_LEVEL_MAX} value={field(`enchlvl-${ench.id}`, String(ench.max))} onChange={(event) => setField(`enchlvl-${ench.id}`, clampNumberInput(event.target.value, 1, COMMAND_LEVEL_MAX, { integer: true }))} />
-          </div>)}
-        </div></div> : null}
-
+        <EditorSection title="Особые свойства" summary="Окраска, отделка, эффекты и другое">
         {selectedItem.startsWith("leather_") ? <div className="section"><div className="section-title">3. Окраска (кожаная броня)</div><label className="check-row" style={{ gap: 10 }}>
           <input type="checkbox" checked={checked("dye-on")} onChange={(event) => setField("dye-on", event.target.checked)} /> Покрасить
           <input type="color" value={field("dye-color", "#a06540")} onChange={(event) => setField("dye-color", event.target.value)} style={{ width: 48, height: 26, padding: 0, border: "2px solid var(--border)", background: "var(--bg)", cursor: "pointer", marginLeft: 6 }} />
@@ -461,7 +439,7 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
               <SelectField label="Цвет" value={layer.color} onChange={(value) => patch({ shieldLayers: snapshot.shieldLayers.map((item) => item.id === layer.id ? { ...item, color: value } : item) })} options={dyeColors} />
               <button className="small" type="button" disabled={index === 0} onClick={() => moveShieldLayer(layer.id, -1)}>↑</button>
               <button className="small" type="button" disabled={index === snapshot.shieldLayers.length - 1} onClick={() => moveShieldLayer(layer.id, 1)}>↓</button>
-              <button className="small danger" type="button" onClick={() => patch({ shieldLayers: snapshot.shieldLayers.filter((item) => item.id !== layer.id) })}>X</button>
+              <button className="small danger" type="button" onClick={() => patch({ shieldLayers: snapshot.shieldLayers.filter((item) => item.id !== layer.id) })}>Удалить</button>
               <div style={{ gridColumn: "2 / -1" }}><ColorSwatches value={layer.color} onChange={(value) => patch({ shieldLayers: snapshot.shieldLayers.map((item) => item.id === layer.id ? { ...item, color: value } : item) })} /></div>
             </div>)}
             {snapshot.shieldLayers.length < 16 ? <button className="small info" type="button" onClick={() => patch({ shieldLayers: [...snapshot.shieldLayers, freshShieldLayer()] })}>+ Добавить слой</button> : null}
@@ -473,27 +451,43 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
         <TotemSection field={field} checked={checked} setField={setField} />
         {selectedItem === "firework_rocket" ? <FireworkSection snapshot={snapshot} patch={patch} field={field} setField={setField} /> : null}
         {isPotion(selectedItem) ? <PotionSection snapshot={snapshot} patch={patch} mods={potionMods} /> : null}
+        </EditorSection>
       </section>
 
-      <section className="panel preview-panel give-preview-panel">
-        <h2>Предпросмотр</h2>
-        <GivePreview snapshot={itemSnapshot} />
+
+
+      {!adminMode ? <EditorSection title="Избранное" summary={`${favorites.length} сборок`}>
+        <div className="fav-header"><h2>Коллекция</h2><button className="small sec" type="button" onClick={addFavorite}>Сохранить</button></div>
+        {favorites.length ? (
+          <div className="favorites-grid">
+            {favorites.map((item) => <div className="fav-card" key={item.id}>
+              <div className="fav-name">{item.name}</div>
+              <div className="fav-sub">{ALL_ITEMS[item.itemId] || item.itemId || "?"}</div>
+              <div className="fav-actions">
+                <button className="small" type="button" onClick={() => loadFavorite(item.id)}>Загрузить</button>
+                <button className="small sec" type="button" onClick={() => renameFavorite(item.id)}>Переименовать</button>
+                <button className="small info" type="button" onClick={() => copy(buildGiveCommand(item))}>Копировать</button>
+                <button className="small danger" type="button" onClick={() => removeFavorite(item.id)}>Удалить</button>
+              </div>
+            </div>)}
+          </div>
+        ) : <p className="empty-favs">Пока пусто. Выбери предмет и нажми Сохранить</p>}
+      </EditorSection> : null}
+
+      <section className="panel random-panel">
+        <button className="random" type="button" onClick={randomizeGive}>Случайно</button>
+        <span className="hint">Собрать случайный предмет с подходящим количеством, именем, лором, чарами и особыми компонентами.</span>
       </section>
 
-      <section className="panel output-panel">
-        <h2>Готовая команда</h2>
-        <div id="command-output">{command}</div>
-        <div className={`char-count${longCommand ? " long" : ""}`}>Длина: {command.length} символов</div>
-        <div className="btn-row">
-          <button type="button" onClick={() => copy()}>Копировать</button>
-          <button className="sec" type="button" onClick={() => setSnapshot({ ...snapshot })}>Обновить</button>
-          <button className="danger" type="button" onClick={resetAll}>Сбросить всё</button>
-        </div>
-        {longCommand ? <div className="warn">Команда длиннее 256 символов - используй командный блок: <code>/give @s command_block</code>{autoTarget ? ". Цель в команде автоматически заменена с @s на @p, чтобы командный блок выдал предмет ближайшему игроку." : ""}</div> : null}
-      </section>
+
+      </div>
+      <CommandResult command={command} onCopy={() => copy()} onReset={resetAll} onSave={!adminMode ? addFavorite : undefined} onUndo={undoSnapshot ? undoReplacement : undefined}
+        warning={longCommand ? <>Команда длиннее 256 символов — используй командный блок: <code>/give @s command_block</code>{autoTarget ? ". Получатель автоматически заменён на ближайшего игрока (@p)." : ""}</> : undefined}>
+        <EditorSection title="Предпросмотр предмета" open><GivePreview snapshot={itemSnapshot} /></EditorSection>
+      </CommandResult>
       {!adminMode ? <ServerCommandExecutor mode="give" snapshot={snapshot} /> : null}
-      <div id="toast" style={{ opacity: toast ? 1 : 0 }}>{toast}</div>
-    </>
+      <div id="toast" role="status" style={{ opacity: toast ? 1 : 0 }}>{toast}</div>
+    </div>
   );
 
   function moveShieldLayer(id: number, dir: number) {
@@ -607,7 +601,7 @@ function FireworkSection({ snapshot, patch, field, setField }: { snapshot: GiveS
 function ColorList({ title, colors, onChange }: { title: string; colors: string[]; onChange: (colors: string[]) => void }) {
   return <div style={{ marginBottom: 8 }}>
     <div className="section-title" style={{ fontSize: 8, marginBottom: 4 }}>{title}</div>
-    <div className="colors-row">{colors.map((color, index) => <span className="color-entry" key={`${color}-${index}`}><input type="color" value={color} onChange={(event) => onChange(colors.map((item, i) => i === index ? event.target.value : item))} /><button className="small danger" type="button" onClick={() => onChange(colors.filter((_, i) => i !== index))}>X</button></span>)}</div>
+    <div className="colors-row">{colors.map((color, index) => <span className="color-entry" key={`${color}-${index}`}><input type="color" value={color} onChange={(event) => onChange(colors.map((item, i) => i === index ? event.target.value : item))} /><button className="small danger" type="button" onClick={() => onChange(colors.filter((_, i) => i !== index))}>Удалить</button></span>)}</div>
     {colors.length < 8 ? <button className="small info" type="button" onClick={() => onChange([...colors, "#ffffff"])}>+ Цвет</button> : null}
   </div>;
 }

@@ -20,7 +20,7 @@ export default async function SummonPage() {
     <>
       <header>
         <h1>ГЕНЕРАТОР /SUMMON</h1>
-        <p>Minecraft Java Edition 1.21.5 и новее · React</p>
+        <p>Minecraft Java Edition 1.21.5 и новее</p>
       </header>
       <main className="container">
         <MobEditor templates={templates} />

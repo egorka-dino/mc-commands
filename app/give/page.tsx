@@ -7,7 +7,7 @@ export default function GivePage() {
     <>
       <header>
         <h1 style={{ color: "var(--accent-2)" }}>ГЕНЕРАТОР /GIVE</h1>
-        <p>Minecraft Java Edition 1.21.5 и новее · React</p>
+        <p>Minecraft Java Edition 1.21.5 и новее</p>
       </header>
 
       <main className="container">
