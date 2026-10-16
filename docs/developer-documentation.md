@@ -332,3 +332,11 @@ npm run start
 3D открыт по умолчанию и получает тот же snapshot, что и ручной редактор: применение и отмена AI-правки автоматически обновляют сцену. Отдельного переключателя видимости 3D нет.
 
 Узоры флагов/щитов используют дробный alpha PNG (особенно gradient/gradient_up и края Mojang). `preview-material.ts` включает NormalBlending для декоративных слоёв, оставляет depthTest, отключает depthWrite и двойной проход DoubleSide; непрозрачная основа задаёт глубину. `EntityPreview` задаёт слоям возрастающий renderOrder по порядку редактора, включая базовый цвет щита. Отделки брони сохраняют прежний cutout-материал. Регрессия: чёрный щит, triangles_bottom/yellow → triangles_top/orange → rhombus/black → gradient/red → mojang/red; последние два красных слоя должны оставаться различимыми, нижние узоры просвечивают сквозь градиент.
+
+### AI: окраска кожи и узоры снаряжения
+
+`app/api/ai/command/route.ts` принимает в `set_dye` и `set_equipment_dye` hex `#rrggbb` или ID из `DYE_COLORS`, сохраняет hex и проверяет кожаный предмет. Системный prompt передаёт русские названия, ID и hex палитры.
+
+В summon операция `set_equipment_shield(index,slot,color)` меняет основу щита/флага; `set_equipment_shield(index,slot,layerIndex,pattern,color)` меняет слой. `index` выбирает моба, отдельный `layerIndex` — слой 0..15; без layerIndex новый узор занимает первый свободный слот. Перекраска слоя без pattern сохраняет рисунок. `remove_equipment_shield_layer` очищает указанный слот без сдвига, `clear_equipment_shield_layers` очищает слои и сохраняет основу, `clear_equipment_shield` отключает оформление. Проверяются предмет, слот, индекс, цвет и узор; остальные поля snapshot сохраняются.
+
+В give `set_shield(color)` меняет основу, `set_shield(index,color)` перекрашивает существующий слой, `set_shield(pattern,color)` без index добавляет слой в конец (до 16). При генерации без snapshot список слоёв начинается пустым: скрытый слой из ручного default не попадает в результат AI. Исходный ручной default не меняется.

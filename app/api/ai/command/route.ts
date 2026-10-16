@@ -29,6 +29,7 @@ type Primitive = string | number | boolean;
 type AiOperation = {
   action: string;
   index?: number;
+  layerIndex?: number;
   field?: string;
   slot?: string;
   itemId?: string;
@@ -100,6 +101,7 @@ const responseSchema = {
         properties: {
           action: { type: "string" },
           index: { type: "integer" },
+          layerIndex: { type: "integer" },
           field: { type: "string" },
           slot: { type: "string" },
           itemId: { type: "string" },
@@ -233,6 +235,7 @@ function buildSystemPrompt(mode: Mode) {
     "Каждую явно названную настройку нужно отразить отдельной operation. Если пользователь просит два зачарования, верни две операции зачарования.",
     `Уровни зачарований можно указывать от 1 до ${COMMAND_LEVEL_MAX}; максимум в списке чар — обычный ванильный уровень, а не жёсткий предел команды.`,
     "Уровни эффектов в UI: I = amplifier 0, V = amplifier 4. В операции set_effect указывай level как человеческий уровень, сервер сам переведёт.",
+    `Окраска кожаных предметов: color — hex #rrggbb или ID красителя (${DYE_COLORS.map(([id, name, hex]) => `${id}=${name}=${hex}`).join(", ")}). В summon используй set_equipment_dye(index,slot,color), в give — set_dye(color). Сначала выбери кожаный предмет. Окраска меняет цвет кожи, а не цвет имени и не отделку.`,
     "Синонимы: незерит/незеритка/незеритовка/назаритка = netherite; усталость/усталость копания = mining_fatigue; сила = strength; скорость = speed.",
     "Синонимы чар: острота = sharpness; добыча на мече = looting; удача на инструментах = fortune; неразрушимость = unbreaking; починка = mending. В фактах этого сайта Добыча/looting на мечах допустима, обязательно добавляй её отдельной operation, если пользователь просит. Фраза 'с названием/имени' означает set_text field=name.",
   ];
@@ -243,6 +246,9 @@ function buildSystemPrompt(mode: Mode) {
       "Если передано текущее состояние, меняй только то, что просит НОВЫЙ запрос. Сохраняй остальные поля и пассажиров. История нужна для понимания ссылок, а текущее состояние важнее истории; не повторяй старые операции. Если состояния нет, собери с нуля.",
       "Удаление: remove_mob(index) удаляет только пассажира (index >= 1), следующие индексы сдвигаются вниз; несколько удаляй с конца. clear_equipment(index,slot) удаляет предмет и все его настройки; remove_effect(index,effectId); remove_equipment_enchant(index,slot,enchantId). Для снятия флага set_boolean value=false, очистки имени set_text value=пустая строка, сброса числа reset_number(index,field). Снять окраску или отделку: clear_equipment_dye(index,slot), clear_equipment_trim(index,slot).",
       "Операции summon: set_mob(index,mobType), set_text(index,field,value), set_boolean(index,field,value), set_number(index,field,value), set_equipment(index,slot,itemId,count,dropChance), set_equipment_enchant(index,slot,enchantId,level), set_equipment_trim(index,slot,material,pattern), set_equipment_dye(index,slot,color), set_effect(index,effectId,level,durationSeconds).",
+      "Щиты и флаги в снаряжении: set_equipment_shield(index,slot,color) меняет только основу; set_equipment_shield(index,slot,layerIndex,pattern,color) добавляет или меняет слой. index — моб, layerIndex — слот слоя 0..15 (отдельные индексы!). Для добавления выбери первый свободный слой. Для перекраски существующего слоя передай layerIndex и color без pattern. Сначала поставь shield или флаг через set_equipment. remove_equipment_shield_layer(index,slot,layerIndex) убирает только указанный слой; clear_equipment_shield_layers(index,slot) убирает все слои, сохраняя основу; clear_equipment_shield(index,slot) отключает оформление целиком.",
+      'Пример красного щита с белым прямым крестом у основного моба: {"operations":[{"action":"set_equipment","index":0,"slot":"offhand","itemId":"shield"},{"action":"set_equipment_shield","index":0,"slot":"offhand","color":"red"},{"action":"set_equipment_shield","index":0,"slot":"offhand","layerIndex":0,"pattern":"straight_cross","color":"white"}]}. Основа — отдельная операция без layerIndex и pattern; для слоёв указывай layerIndex. pattern — ID без префикса minecraft:. Не пропускай основу, даже если добавляешь узоры.',
+      `Красители для щитов и флагов: ${DYE_COLORS.map(([id, name]) => `${id}=${name}`).join(", ")}. Узоры: ${BANNER_PATTERNS.map(([id, name]) => `${id}=${name}`).join(", ")}.`,
       "index 0 — основной нижний моб. index 1 сидит на index 0, index 2 сидит на index 1. Для пассажиров сначала делай set_mob с нужным index.",
       "dropChance заполняй только если пользователь явно просит шанс выпадения; иначе не указывай.",
       "Если просят 'в незеритке', поставь полный netherite armor: head/chest/legs/feet. Оружие клади в mainhand, щит/тотем в offhand.",
@@ -259,15 +265,16 @@ function buildSystemPrompt(mode: Mode) {
     "Единицы текущего snapshot: food-eff-dur-N и totem-eff-dur-N — длительность В ТИКАХ (20 тиков = 1 секунда); food-eff-amp-N и totem-eff-amp-N — amplifier (уровень минус 1). В операции durationSeconds — СЕКУНДЫ, level — человеческий уровень. Если просят изменить только уровень существующего эффекта, передавай только index, effectId, level, БЕЗ durationSeconds: сервер сам сохранит время. Аналогично не повторяй неизменённые свойства других операций.",
     "Если передано текущее состояние, верни ТОЛЬКО изменения из нового запроса. Сохраняй остальные поля, имя, лор, количество, получателя, слои узора и взрывы. Состояние важнее истории; не повторяй старые операции. Без состояния собери с нуля.",
     "Удаление: remove_enchant(enchantId); reset_field(field) сбрасывает поле (имя, лор, числовую настройку) к значению по умолчанию. set_boolean value=false отключает dye-on, trim-on, shield-on, totem-on и прочие флаги. remove_food_effect(index), remove_totem_effect(index), remove_shield_layer(index), clear_shield_layers(), remove_firework(index), clear_fireworks(). Не добавляй чары, которые пользователь просит убрать.",
-    "set_text поддерживает lore-0..lore-4, lore-color-0..lore-color-4. set_shield(color) меняет только базовый цвет; set_shield(pattern,color,index) меняет слой узора, index=текущая длина добавляет слой. set_firework(index,shape,colors,fadeColors,trail,twinkle) меняет только указанные свойства взрыва; index=текущая длина добавляет взрыв. Нумерация всех массивов с 0.",
-    "При смене предмета сохраняй совместимые настройки и предупреди о несовместимых. Не ставь сброс количества или получателя без явной просьбы.",
-    "Операции give: set_item(itemId), set_count(count), set_target(target), set_text(field,value), set_boolean(field,value), set_enchant(enchantId,level), set_trim(material,pattern), set_dye(color), set_shield(color,pattern), set_potion(potionType,potionModifier), set_food_effect(index,effectId,level,durationSeconds), set_totem_effect(index,effectId,level,durationSeconds), set_firework(shape,colors,fadeColors,trail,twinkle).",
+    "set_text поддерживает lore-0..lore-4, lore-color-0..lore-color-4. set_shield(color) меняет только базовый цвет; set_shield(pattern,color,index) меняет слой узора, index=текущая длина добавляет слой; без index новый pattern добавляется в конец. set_shield(index,color) перекрашивает существующий слой без смены узора. set_firework(index,shape,colors,fadeColors,trail,twinkle) меняет только указанные свойства взрыва; index=текущая длина добавляет взрыв. Нумерация всех массивов с 0.",
+    "Если новый запрос называет другой предмет, обязательно сначала верни set_item(itemId), даже при переданном snapshot: например, запрос про щит при текущем мече требует set_item shield ПЕРЕД set_shield. Запрос про кожаную куртку при другом предмете требует set_item leather_chestplate ПЕРЕД set_dye. Не считай это запретом на смену предмета. При смене предмета сохраняй совместимые настройки и предупреди о несовместимых. Не ставь сброс количества или получателя без явной просьбы.",
+    "Операции give: set_item(itemId), set_count(count), set_target(target), set_text(field,value), set_boolean(field,value), set_enchant(enchantId,level), set_trim(material,pattern), set_dye(color), set_shield(index,color,pattern), set_potion(potionType,potionModifier), set_food_effect(index,effectId,level,durationSeconds), set_totem_effect(index,effectId,level,durationSeconds), set_firework(shape,colors,fadeColors,trail,twinkle).",
+    'Пример красного щита с белым прямым крестом и чёрной рамкой: {"operations":[{"action":"set_item","itemId":"shield"},{"action":"set_shield","color":"red"},{"action":"set_shield","index":0,"pattern":"straight_cross","color":"white"},{"action":"set_shield","index":1,"pattern":"border","color":"black"}]}. Основа — отдельная операция БЕЗ index, слои нумеруются с 0 независимо от основы. pattern — ID из списка без префикса minecraft:.',
     "Для зелий itemId имеет формат potion:effect, а potionType выбирает предмет: potion/splash_potion/lingering_potion/tipped_arrow.",
     `Предметы: ${formatGrouped(GIVE_ITEM_GROUPS, "items")}.`,
     `Эффекты: ${EFFECTS.map(([id, name]) => `${id}=${name}`).join(", ")}.`,
     `Зелья: ${POTIONS.map(([id, name, long, strong]) => `${id}=${name}${long ? ",long" : ""}${strong ? ",strong" : ""}`).join("; ")}.`,
     `Зачарования по предметам: ${formatEnchantFacts([...validGiveItems])}.`,
-    `Цвета имён: ${[...nameColors].filter(Boolean).join(", ")}. Красители: ${DYE_COLORS.map(([id]) => id).join(", ")}. Отделки: materials ${TRIM_MATERIALS.map(([id]) => id).join(", ")}; patterns ${TRIM_PATTERNS.map(([id]) => id).join(", ")}. Узоры щита: ${BANNER_PATTERNS.map(([id]) => id).join(", ")}.`,
+    `Цвета имён: ${[...nameColors].filter(Boolean).join(", ")}. Красители: ${DYE_COLORS.map(([id]) => id).join(", ")}. Отделки: materials ${TRIM_MATERIALS.map(([id]) => id).join(", ")}; patterns ${TRIM_PATTERNS.map(([id]) => id).join(", ")}. Узоры щита/флага: ${BANNER_PATTERNS.map(([id, name]) => `${id}=${name}`).join(", ")}.`,
   ].join("\n");
 }
 
@@ -379,9 +386,38 @@ function applySummonPlan(plan: AiPlan, current?: SummonSnapshot): { snapshot: Su
       snapshot = setSummonField(snapshot, index, `trimon-${op.slot}`, true);
       snapshot = setSummonField(snapshot, index, `trimmat-${op.slot}`, op.material || "iron");
       snapshot = setSummonField(snapshot, index, `trimpat-${op.slot}`, op.pattern || "sentry");
-    } else if (op.action === "set_equipment_dye" && op.slot && validSlots.has(op.slot) && isHexColor(op.color)) {
+    } else if (op.action === "set_equipment_dye" && op.slot && validSlots.has(op.slot) && leatherColor(op.color)) {
+      if (!String(snapshot.fields[`${index}-slot-${op.slot}`] || "").startsWith("leather_")) continue;
       snapshot = setSummonField(snapshot, index, `dyeon-${op.slot}`, true);
-      snapshot = setSummonField(snapshot, index, `dye-${op.slot}`, op.color || "#a06540");
+      snapshot = setSummonField(snapshot, index, `dye-${op.slot}`, leatherColor(op.color)!);
+    } else if (["set_equipment_shield", "clear_equipment_shield", "remove_equipment_shield_layer", "clear_equipment_shield_layers"].includes(op.action) && op.slot && validSlots.has(op.slot)) {
+      const slot = op.slot;
+      if (!supportsBannerPatterns(String(snapshot.fields[`${index}-slot-${slot}`] || ""))) continue;
+      const set = (field: string, value: SummonFieldValue) => { snapshot = setSummonField(snapshot, index, field, value); };
+      if (op.action === "clear_equipment_shield") {
+        set(`shieldon-${slot}`, false);
+      } else if (op.action === "clear_equipment_shield_layers") {
+        for (let layer = 0; layer < 16; layer++) {
+          set(`shieldpat-${slot}-${layer}`, "");
+          set(`shieldcolor-${slot}-${layer}`, "");
+        }
+      } else if (op.action === "remove_equipment_shield_layer") {
+        if (!Number.isInteger(op.layerIndex) || op.layerIndex! < 0 || op.layerIndex! >= 16) continue;
+        set(`shieldpat-${slot}-${op.layerIndex}`, "");
+        set(`shieldcolor-${slot}-${op.layerIndex}`, "");
+      } else if (op.layerIndex !== undefined || op.pattern !== undefined) {
+        const layer = op.layerIndex ?? Array.from({ length: 16 }, (_, i) => i).find(i => !snapshot.fields[`${index}-shieldpat-${slot}-${i}`]);
+        if (!Number.isInteger(layer) || layer! < 0 || layer! >= 16) continue;
+        const previous = String(snapshot.fields[`${index}-shieldpat-${slot}-${layer}`] || "");
+        const pattern = op.pattern ?? previous;
+        if (!validBannerPatterns.has(pattern) || (op.color !== undefined && !validColors.has(op.color))) continue;
+        set(`shieldon-${slot}`, true);
+        set(`shieldpat-${slot}-${layer}`, pattern);
+        if (op.color !== undefined) set(`shieldcolor-${slot}-${layer}`, op.color);
+      } else if (validColors.has(op.color || "")) {
+        set(`shieldon-${slot}`, true);
+        set(`shieldbase-${slot}`, op.color!);
+      }
     } else if (op.action === "set_effect" && op.effectId && validEffects.has(op.effectId)) {
       snapshot = setSummonField(snapshot, index, `eff-${op.effectId}`, true);
       snapshot = setSummonField(snapshot, index, `effamp-${op.effectId}`, String(clampInt((op.level ?? 1) - 1, 0, 255)));
@@ -393,6 +429,7 @@ function applySummonPlan(plan: AiPlan, current?: SummonSnapshot): { snapshot: Su
 
 function applyGivePlan(plan: AiPlan, prompt: string, current?: GiveSnapshot): { snapshot: GiveSnapshot } {
   const snapshot = current ? structuredClone(current) : defaultGiveSnapshot();
+  if (!current) snapshot.shieldLayers = [];
   for (const op of plan.operations) {
     if (op.action === "set_item" && op.itemId && validGiveItems.has(op.itemId)) {
       snapshot.itemId = op.itemId;
@@ -421,20 +458,22 @@ function applyGivePlan(plan: AiPlan, prompt: string, current?: GiveSnapshot): { 
       snapshot.fields["trim-on"] = true;
       snapshot.fields["trim-mat"] = op.material || "iron";
       snapshot.fields["trim-pat"] = op.pattern || "sentry";
-    } else if (op.action === "set_dye" && isHexColor(op.color)) {
+    } else if (op.action === "set_dye" && leatherColor(op.color) && snapshot.itemId.startsWith("leather_")) {
       snapshot.fields["dye-on"] = true;
-      snapshot.fields["dye-color"] = op.color || "#a06540";
-    } else if (op.action === "set_shield") {
+      snapshot.fields["dye-color"] = leatherColor(op.color)!;
+    } else if (op.action === "set_shield" && supportsBannerPatterns(snapshot.itemId)) {
+      if (op.color !== undefined && !validColors.has(op.color)) continue;
+      if (op.pattern !== undefined || op.index !== undefined) {
+        const index = op.index ?? snapshot.shieldLayers.length;
+        if (!Number.isInteger(index) || index < 0 || index > snapshot.shieldLayers.length || index >= 16) continue;
+        const previous = snapshot.shieldLayers[index];
+        const pattern = op.pattern ?? previous?.pattern;
+        if (!validBannerPatterns.has(pattern || "")) continue;
+        snapshot.shieldLayers[index] = { id: previous?.id ?? Date.now() + Math.random(), pattern: pattern!, color: op.color ?? previous?.color ?? "black" };
+      } else if (op.color !== undefined) {
+        snapshot.fields["shield-base"] = op.color;
+      } else continue;
       snapshot.fields["shield-on"] = true;
-      if (!op.pattern && validColors.has(op.color || "")) snapshot.fields["shield-base"] = op.color || "white";
-      if (validBannerPatterns.has(op.pattern || "")) {
-        const index = op.index ?? 0;
-        if (Number.isInteger(index) && index >= 0 && index <= snapshot.shieldLayers.length && index < 16) {
-          const previous = snapshot.shieldLayers[index];
-          snapshot.shieldLayers[index] = { id: previous?.id ?? Date.now() + Math.random(), pattern: op.pattern!,
-            color: validColors.has(op.color || "") ? op.color! : previous?.color || "black" };
-        }
-      }
     } else if (op.action === "set_potion") {
       applyPotion(snapshot, op);
     } else if (op.action === "set_food_effect" && op.effectId && validEffects.has(op.effectId)) {
@@ -561,6 +600,11 @@ function clampInt(value: number, min: number, max: number) {
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+
+function leatherColor(value: unknown): string | undefined {
+  if (isHexColor(value)) return value;
+  return DYE_COLORS.find(([id]) => id === value)?.[2];
 }
 
 function isHexColor(value: unknown): value is string {

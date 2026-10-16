@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { defaultGiveSnapshot, buildGiveCommand, getGivePreviewData } from '../.test-build/components/give/engine.js';
+import { buildNBTPartsFor } from '../.test-build/components/summon/engine.js';
 import { POST } from '../.test-build/api/ai/command/route.js';
 
 process.env.OPENAI_API_KEY = 'test-key';
@@ -197,4 +198,84 @@ test('refines items with underscore enchantment IDs without rejecting the curren
   assert.equal(result.status, 200, result.error);
   assert.equal(result.snapshot.fields.name, 'Проверка');
   assert.equal(result.snapshot.fields['ench-sweeping_edge'], true);
+});
+
+test('leather dye accepts palette IDs and hex colors in both generators', async () => {
+  operations = [{action:'set_equipment',slot:'chest',itemId:'leather_chestplate'},
+    {action:'set_equipment_dye',slot:'chest',color:'red'}];
+  const summon = await call({mode:'summon',prompt:'Красная кожаная куртка',snapshot:initial});
+  assert.equal(summon.snapshot.fields['0-dye-chest'],'#b02e26');
+  assert.match(buildNBTPartsFor(summon.snapshot,0).join(','), /"minecraft:dyed_color":11546150/);
+  assert.deepEqual(summon.snapshot.mobOrder,initial.mobOrder);
+  operations = [{action:'set_item',itemId:'leather_helmet'},{action:'set_dye',color:'#123abc'}];
+  const give = await call({mode:'give',prompt:'Покрась кожаный шлем'});
+  assert.match(buildGiveCommand(give.snapshot), /dyed_color=1194684/);
+  operations = [{action:'set_dye',color:'blue'}];
+  const blue = await call({mode:'give',prompt:'Теперь синий',snapshot:give.snapshot});
+  assert.equal(blue.snapshot.fields['dye-color'],'#3c44aa');
+  operations = [{action:'set_dye',color:'invalid'}];
+  assert.deepEqual((await call({mode:'give',prompt:'Неверный цвет',snapshot:blue.snapshot})).snapshot,blue.snapshot);
+});
+
+test('summon shield operations target passenger layers and preserve unrelated settings', async () => {
+  operations = [{action:'set_equipment',index:1,slot:'offhand',itemId:'shield'},
+    {action:'set_equipment_shield',index:1,slot:'offhand',color:'red'},
+    {action:'set_equipment_shield',index:1,slot:'offhand',layerIndex:0,pattern:'straight_cross',color:'white'},
+    {action:'set_equipment_shield',index:1,slot:'offhand',pattern:'border',color:'black'}];
+  const first = await call({mode:'summon',prompt:'Пассажиру красный щит с белым крестом и чёрной рамкой',snapshot:initial});
+  const command = buildNBTPartsFor(first.snapshot,1).join(',');
+  assert.match(command,/base_color:"red"/);
+  assert.match(command,/pattern:"minecraft:straight_cross",color:"white"/);
+  assert.match(command,/pattern:"minecraft:border",color:"black"/);
+  assert.equal(first.snapshot.fields['0-name'],'Рыцарь');
+  operations = [{action:'set_equipment_shield',index:1,slot:'offhand',layerIndex:0,color:'yellow'}];
+  const second = await call({mode:'summon',prompt:'Крест сделай жёлтым',snapshot:first.snapshot});
+  assert.equal(second.snapshot.fields['1-shieldpat-offhand-0'],'straight_cross');
+  assert.equal(second.snapshot.fields['1-shieldcolor-offhand-0'],'yellow');
+  assert.equal(second.snapshot.fields['1-shieldbase-offhand'],'red');
+  operations = [{action:'remove_equipment_shield_layer',index:1,slot:'offhand',layerIndex:0}];
+  const removed = await call({mode:'summon',prompt:'Убери крест',snapshot:second.snapshot});
+  assert.doesNotMatch(buildNBTPartsFor(removed.snapshot,1).join(','),/straight_cross/);
+  assert.equal(removed.snapshot.fields['1-shieldpat-offhand-1'],'border');
+  operations = [{action:'clear_equipment_shield_layers',index:1,slot:'offhand'}];
+  const cleared = await call({mode:'summon',prompt:'Убери все узоры',snapshot:removed.snapshot});
+  assert.doesNotMatch(buildNBTPartsFor(cleared.snapshot,1).join(','),/banner_patterns/);
+  assert.match(buildNBTPartsFor(cleared.snapshot,1).join(','),/base_color:"red"/);
+  operations = [{action:'clear_equipment_shield',index:1,slot:'offhand'}];
+  const disabled = await call({mode:'summon',prompt:'Сними оформление',snapshot:cleared.snapshot});
+  assert.doesNotMatch(buildNBTPartsFor(disabled.snapshot,1).join(','),/base_color/);
+});
+
+test('invalid summon shield operations and incompatible leather dye leave state untouched', async () => {
+  operations = [{action:'set_equipment_shield',slot:'head',pattern:'border',color:'red'},
+    {action:'set_equipment_dye',slot:'head',color:'red'},
+    {action:'set_equipment_shield',slot:'offhand',layerIndex:16,pattern:'border'},
+    {action:'set_equipment_shield',slot:'offhand',layerIndex:-1,pattern:'border'},
+    {action:'set_equipment_shield',slot:'offhand',pattern:'unknown'},
+    {action:'set_equipment_shield',slot:'offhand',pattern:'border',color:'unknown'}];
+  const snapshot = {...initial,fields:{...initial.fields,'0-slot-offhand':'shield'}};
+  const result = await call({mode:'summon',prompt:'Неверные настройки',snapshot});
+  for (const [key,value] of Object.entries(snapshot.fields)) assert.equal(result.snapshot.fields[key],value);
+  assert.equal(result.snapshot.fields['0-shieldon-offhand'],undefined);
+  assert.equal(result.snapshot.fields['0-dyeon-head'],undefined);
+});
+
+test('give appends shield layers and recolors a layer without changing its pattern or base', async () => {
+  operations = [{action:'set_item',itemId:'shield'},{action:'set_shield',color:'red'},
+    {action:'set_shield',pattern:'straight_cross',color:'white'},
+    {action:'set_shield',pattern:'border',color:'black'}];
+  const first = await call({mode:'give',prompt:'Красный щит с белым крестом и чёрной рамкой'});
+  assert.equal(first.snapshot.shieldLayers.length,2);
+  assert.deepEqual(first.snapshot.shieldLayers.map(({pattern,color})=>({pattern,color})),[
+    {pattern:'straight_cross',color:'white'},{pattern:'border',color:'black'}]);
+  assert.match(buildGiveCommand(first.snapshot),/base_color="red"/);
+  operations = [{action:'set_shield',index:0,color:'yellow'}];
+  const second = await call({mode:'give',prompt:'Крест сделай жёлтым',snapshot:first.snapshot});
+  assert.equal(second.snapshot.fields['shield-base'],'red');
+  assert.equal(second.snapshot.shieldLayers[0].pattern,'straight_cross');
+  assert.equal(second.snapshot.shieldLayers[0].color,'yellow');
+  assert.deepEqual(second.snapshot.shieldLayers[1],first.snapshot.shieldLayers[1]);
+  operations = [{action:'set_item',itemId:'shield'},{action:'set_shield',color:'blue'}];
+  const plain = await call({mode:'give',prompt:'Просто синий щит'});
+  assert.doesNotMatch(buildGiveCommand(plain.snapshot),/banner_patterns/);
 });
