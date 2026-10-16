@@ -352,7 +352,7 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
           <h2>Готовая команда</h2>
           <div id="command-output">{command}</div>
           <div className={`char-count${command.length > 256 ? " long" : ""}`}>Длина: {command.length} символов</div>
-          <div className="btn-row"><button type="button" onClick={() => copy()}>Копировать</button><button className="sec" type="button" onClick={() => showToast("Обновлено")}>Обновить</button><button className="danger" type="button" onClick={() => { if (window.confirm("Сбросить все настройки и пассажиров?")) loadSnapshot(toSnapshot(["zombie"])); }}>Сброс всего</button></div>
+          <div className="btn-row"><button type="button" onClick={() => copy()}>Копировать</button><button className="sec" type="button" onClick={() => showToast("Обновлено")}>Обновить</button><button className="danger" type="button" onClick={() => { if (window.confirm("Сбросить все настройки, пассажиров и историю AI-помощника?")) loadSnapshot(toSnapshot(["zombie"])); }}>Сбросить всё</button></div>
           {command.length > 256 ? <div className="warn">Команда длиннее 256 символов — в чат не поместится. Используй командный блок.</div> : null}
         </section>
       ) : null}

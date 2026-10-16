@@ -8,10 +8,9 @@ type Options<T> = {
   snapshot: T;
   onApply: (snapshot: T) => void;
   normalize: (snapshot: T) => T;
-  confirmRestart: string;
 };
 
-export function useCommandAssistant<T>({ mode, snapshot, onApply, normalize, confirmRestart }: Options<T>) {
+export function useCommandAssistant<T>({ mode, snapshot, onApply, normalize }: Options<T>) {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<Turn[]>([]);
@@ -25,10 +24,9 @@ export function useCommandAssistant<T>({ mode, snapshot, onApply, normalize, con
   const changedAfterAnswer = Boolean(undo && JSON.stringify(snapshot) !== undo.afterKey);
   const canUndo = Boolean(undo && !changedAfterAnswer && !busy);
 
-  async function generate(startOver = false) {
+  async function generate() {
     const text = prompt.trim();
     if (activeRequest.current || text.length < 3) return;
-    if (startOver && !window.confirm(confirmRestart)) return;
     const before = latest.current.snapshot;
     const beforeKey = JSON.stringify(before);
     const controller = new AbortController();
@@ -38,12 +36,12 @@ export function useCommandAssistant<T>({ mode, snapshot, onApply, normalize, con
     try {
       const response = await fetch("/api/ai/command", {
         method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
-        body: JSON.stringify({ mode, prompt: text, ...(!startOver ? {
+        body: JSON.stringify({ mode, prompt: text,
           snapshot: before,
           history: history.slice(-6).flatMap(turn => [
             { role: "user", content: turn.prompt }, { role: "assistant", content: turn.notes.join("\n") },
           ]),
-        } : {}) }),
+        }),
       });
       const data = await response.json();
       if (controller.signal.aborted) return;
@@ -56,7 +54,7 @@ export function useCommandAssistant<T>({ mode, snapshot, onApply, normalize, con
       setUndo({ before, afterKey: JSON.stringify(after), history });
       const notes = [data.summary, ...(Array.isArray(data.notes) ? data.notes : [])]
         .filter((note): note is string => typeof note === "string" && Boolean(note));
-      setHistory([...(startOver ? [] : history), { prompt: text, notes: notes.length ? notes : ["Готово"] }].slice(-20));
+      setHistory([...history, { prompt: text, notes: notes.length ? notes : ["Готово"] }].slice(-20));
       setPrompt("");
     } catch (cause) {
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Не получилось понять описание");
