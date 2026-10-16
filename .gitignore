@@ -10,3 +10,6 @@ out/
 .playwright-mcp/
 .test-build/
 __pycache__/
+
+# Optional compressed transport for Vercel API previews
+/entity-preview-bundle.json.gz

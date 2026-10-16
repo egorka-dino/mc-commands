@@ -1,5 +1,6 @@
 import {
   BANNER_PATTERNS,
+  RANDOM_BABY_MOBS,
   canHaveTrim,
   DYE_COLORS,
   EFFECTS,
@@ -61,7 +62,9 @@ export function buildNBTPartsFor(snapshot: SummonSnapshot, index: number) {
     if (Number.isInteger(coat) && coat >= 0 && coat <= 6) parts.push(`Variant:${coat}`);
   }
 
-  if (asBool(read(snapshot, index, "baby"))) parts.push("IsBaby:1b");
+  if (asBool(read(snapshot, index, "baby")) && RANDOM_BABY_MOBS.has(mobType)) {
+    parts.push(["zombie", "husk", "drowned", "zombie_villager", "zombified_piglin", "piglin", "zoglin"].includes(mobType) ? "IsBaby:1b" : "Age:-24000");
+  }
   if (asBool(read(snapshot, index, "invul"))) parts.push("Invulnerable:1b");
   if (asBool(read(snapshot, index, "invisible"))) parts.push("Invisible:1b");
   if (asBool(read(snapshot, index, "silent"))) parts.push("Silent:1b");
@@ -112,6 +115,7 @@ export function buildNBTPartsFor(snapshot: SummonSnapshot, index: number) {
       const enchants = enchantSelections(snapshot, index, slot.key).map(({ id, lvl }) => `${id}:${lvl}`);
       const count = Number.parseInt(asString(read(snapshot, index, `count-${slot.key}`)), 10) || 1;
       const comps: string[] = [];
+      let renderedItemId = itemId;
       if (enchants.length) comps.push(`enchantments:{${enchants.join(",")}}`);
       if (itemId.startsWith("leather_") && asBool(read(snapshot, index, `dyeon-${slot.key}`))) {
         const hex = (asString(read(snapshot, index, `dye-${slot.key}`)) || "#a06540").replace("#", "");
@@ -132,10 +136,13 @@ export function buildNBTPartsFor(snapshot: SummonSnapshot, index: number) {
           if (!validPatterns.has(pattern) || !validColors.has(color)) return "";
           return `{pattern:"minecraft:${pattern}",color:"${color}"}`;
         }).filter(Boolean);
-        if (validColors.has(base)) comps.push(`base_color:"${base}"`);
+        if (validColors.has(base)) {
+          if (itemId.endsWith("_banner")) renderedItemId = `${base}_banner`;
+          else comps.push(`base_color:"${base}"`);
+        }
         if (layers.length) comps.push(`banner_patterns:[${layers.join(",")}]`);
       }
-      equipParts.push(`${slot.key}:{id:${itemId},count:${count}${comps.length ? `,components:{${comps.join(",")}}` : ""}}`);
+      equipParts.push(`${slot.key}:{id:${renderedItemId},count:${count}${comps.length ? `,components:{${comps.join(",")}}` : ""}}`);
     }
 
     const dropVal = Number.parseFloat(asString(read(snapshot, index, `drop-${slot.key}`)));
@@ -164,7 +171,7 @@ export function buildSummonCommand(snapshot: SummonSnapshot, coords = "~ ~ ~") {
     if (index < snapshot.mobOrder.length - 1) {
       const nextParts = buildAt(index + 1);
       const nextId = snapshot.mobOrder[index + 1]?.mobType || "zombie";
-      parts.push(`Passengers:[{id:"minecraft:${nextId}"${nextParts.length ? `,${nextParts.join(",")}` : ""}}]`);
+      parts.push(`Passengers:[{id:"minecraft:${nextId === "boat" ? "oak_boat" : nextId}"${nextParts.length ? `,${nextParts.join(",")}` : ""}}]`);
     }
     return parts;
   }
@@ -172,7 +179,7 @@ export function buildSummonCommand(snapshot: SummonSnapshot, coords = "~ ~ ~") {
   const mainType = snapshot.mobOrder[0]?.mobType || "zombie";
   const mainParts = buildAt(0);
   const nbt = mainParts.length ? ` {${mainParts.join(", ")}}` : "";
-  return `/summon minecraft:${mainType} ${coords.trim() || "~ ~ ~"}${nbt}`;
+  return `/summon minecraft:${mainType === "boat" ? "oak_boat" : mainType} ${coords.trim() || "~ ~ ~"}${nbt}`;
 }
 
 export function getPreviewData(snapshot: SummonSnapshot, index: number) {

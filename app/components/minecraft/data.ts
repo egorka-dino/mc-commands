@@ -254,7 +254,7 @@ export const BABY_MOBS = new Set([
   "hoglin", "zoglin", "cow", "mooshroom", "pig", "sheep", "chicken", "rabbit",
   "horse", "donkey", "mule", "cat", "ocelot", "fox", "goat", "llama",
   "trader_llama", "wolf", "panda", "bee", "villager", "turtle", "camel",
-  "sniffer", "armadillo",
+  "sniffer", "armadillo", "polar_bear", "dolphin", "axolotl", "strider", "happy_ghast",
 ]);
 
 export const SUMMON_EQUIPMENT_SLOTS = [
