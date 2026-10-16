@@ -174,7 +174,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const plan = await requestAiPlan(apiKey, mode, prompt, current || currentGive, history);
+    const initialSummon = mode === "summon" && history.length === 0 && (!current || isInitialSummonSnapshot(current));
+    const plan = await requestAiPlan(apiKey, mode, prompt, current || currentGive, history, initialSummon);
     const result = mode === "summon" ? applySummonPlan(plan, current) : applyGivePlan(plan, prompt, currentGive);
     return Response.json({ ...result, summary: plan.summary, notes: plan.notes.slice(0, 5) });
   } catch (error) {
@@ -182,7 +183,15 @@ export async function POST(request: Request) {
   }
 }
 
-async function requestAiPlan(apiKey: string, mode: Mode, prompt: string, current?: SummonSnapshot | GiveSnapshot, history: Array<{ role: "user" | "assistant"; content: string }> = []): Promise<AiPlan> {
+// Only the untouched default is a placeholder; manual fields and prior turns keep
+// the normal refinement contract, even when the mob is still a zombie.
+function isInitialSummonSnapshot(snapshot: SummonSnapshot) {
+  const initial = toSnapshot(["zombie"]);
+  return snapshot.mobOrder.length === 1 && snapshot.mobOrder[0].mobType === "zombie" &&
+    Object.entries(snapshot.fields).every(([key, value]) => initial.fields[key] === value);
+}
+
+async function requestAiPlan(apiKey: string, mode: Mode, prompt: string, current?: SummonSnapshot | GiveSnapshot, history: Array<{ role: "user" | "assistant"; content: string }> = [], initialSummon = false): Promise<AiPlan> {
   const response = await fetch(OPENAI_URL, {
     method: "POST",
     headers: {
@@ -198,7 +207,9 @@ async function requestAiPlan(apiKey: string, mode: Mode, prompt: string, current
       input: [
         { role: "system", content: buildSystemPrompt(mode) },
         ...history,
-        { role: "user", content: current ? `Текущее состояние редактора (источник истины, включая ручные правки):\n${JSON.stringify(current)}\nНовый запрос: ${prompt}` : prompt },
+        { role: "user", content: initialSummon
+          ? `Редактор ещё не настроен: выбран только стартовый зомби без ручных правок и истории. Это заполнитель, а не дополнительный участник новой сцены. Если запрос описывает новых мобов, замени стартового зомби через set_mob(0,mobType нижнего моба), затем добавь только запрошенных пассажиров. Если запрос ссылается на него (например, посади его на свинью) или меняет только настройки (например, добавь меч), сохрани зомби и доработай его.\nНовый запрос: ${prompt}`
+          : current ? `Текущее состояние редактора (источник истины, включая ручные правки):\n${JSON.stringify(current)}\nНовый запрос: ${prompt}` : prompt },
       ],
       text: {
         format: {
@@ -246,6 +257,7 @@ function buildSystemPrompt(mode: Mode) {
       ...common,
       "Режим summon. Нужно заполнить редактор мобов и пассажиров.",
       "Если передано текущее состояние, меняй только то, что просит НОВЫЙ запрос. Сохраняй остальные поля и пассажиров. История нужна для понимания ссылок, а текущее состояние важнее истории; не повторяй старые операции. Если состояния нет, собери с нуля.",
+      'Если редактор явно помечен как ещё не настроенный, стартовый зомби — заполнитель. Самостоятельное описание новых мобов заменяет его, а не добавляется к нему. Примеры "курица на свинье" и "сделай свинью, на ней курица сидит" → {"operations":[{"action":"set_mob","index":0,"mobType":"pig"},{"action":"set_mob","index":1,"mobType":"chicken"}]}. Результат ровно [свинья, курица], без зомби. Сначала задавай НИЖНЕГО моба через set_mob(0), затем пассажиров снизу вверх. Это правило не применяется к настроенной сборке, ручным правкам или истории. Просьба "посади его на свинью" ссылается на стартового зомби: mount_mob(0,pig), результат [свинья, зомби].',
       "Удаление: remove_mob(index) удаляет ЛЮБОГО существующего моба, включая основного с index=0, если в цепочке больше одного моба. Следующие индексы сдвигаются вниз вместе со всеми настройками. При удалении index=0 прежний index=1 становится основным; остальные пассажиры сохраняются. Нескольких удаляй с конца. Единственного моба удалить нельзя: редактор должен содержать хотя бы одного моба, объясни это ограничение. НЕ заменяй удаление через set_mob, очистку снаряжения или копирование персонажей. clear_equipment(index,slot) удаляет предмет и все его настройки; remove_effect(index,effectId); remove_equipment_enchant(index,slot,enchantId). Для снятия флага set_boolean value=false, очистки имени set_text value=пустая строка, сброса числа reset_number(index,field). Снять окраску или отделку: clear_equipment_dye(index,slot), clear_equipment_trim(index,slot).",
       'Пример удаления: [паук, лошадь, зомби в алмазной броне, курица] + "Убери паука" → {"operations":[{"action":"remove_mob","index":0}]}, получится [та же лошадь, тот же зомби в броне, та же курица]. Если затем просят убрать лошадь, снова remove_mob(0): получится [тот же зомби в броне, та же курица]. Индексы бери из ТЕКУЩЕГО состояния, даже если история ошибочно утверждает, что моб уже удалён.',
       "Операции summon: remove_mob(index), mount_mob(index,mobType), insert_mob(index,mobType), move_mob(index,toIndex), set_mob(index,mobType), set_text(index,field,value), set_boolean(index,field,value), set_number(index,field,value), set_equipment(index,slot,itemId,count,dropChance), set_equipment_enchant(index,slot,enchantId,level), set_equipment_trim(index,slot,material,pattern), set_equipment_dye(index,slot,color), set_effect(index,effectId,level,durationSeconds).",

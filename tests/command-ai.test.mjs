@@ -407,3 +407,57 @@ test('root removal followed by edits uses new indices; deleting the last mob rep
   assert.deepEqual(last.snapshot, result.snapshot);
   assert.match(last.notes.join(''), /Нельзя удалить единственного моба/);
 });
+
+
+const untouchedZombie = { mobOrder: [{ mobType: 'zombie' }], fields: {
+  '0-mob': 'zombie', '0-persist': true, '0-name-visible': true,
+} };
+
+test('a fresh scene description treats the untouched zombie as a placeholder', async () => {
+  const before = structuredClone(untouchedZombie);
+  operations = [{ action: 'set_mob', index: 0, mobType: 'pig' }, { action: 'set_mob', index: 1, mobType: 'chicken' }];
+  for (const prompt of ['курица на свинье', 'сделай свинью, на ней курица сидит']) {
+    const result = await call({ mode: 'summon', prompt, snapshot: untouchedZombie });
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.snapshot.mobOrder.map(m => m.mobType), ['pig', 'chicken']);
+    assert.match(upstream.input.at(-1).content, /стартовый зомби/);
+    assert.match(upstream.input.at(-1).content, /Это заполнитель/);
+    assert.doesNotMatch(upstream.input.at(-1).content, /источник истины/);
+  }
+  assert.deepEqual(untouchedZombie, before);
+  const fresh = await call({ mode: 'summon', prompt: 'курица на свинье' });
+  assert.deepEqual(fresh.snapshot.mobOrder.map(m => m.mobType), ['pig', 'chicken']);
+  assert.match(upstream.input.at(-1).content, /Это заполнитель/);
+});
+
+test('references and equipment-only requests still refine the initial zombie', async () => {
+  operations = [{ action: 'mount_mob', index: 0, mobType: 'pig' }];
+  const mounted = await call({ mode: 'summon', prompt: 'посади его на свинью', snapshot: untouchedZombie });
+  assert.deepEqual(mounted.snapshot.mobOrder.map(m => m.mobType), ['pig', 'zombie']);
+  assert.match(upstream.input.at(-1).content, /сохрани зомби/);
+  operations = [{ action: 'set_equipment', slot: 'mainhand', itemId: 'diamond_sword' }];
+  const armed = await call({ mode: 'summon', prompt: 'добавь меч', snapshot: untouchedZombie });
+  assert.deepEqual(armed.snapshot.mobOrder, untouchedZombie.mobOrder);
+  assert.equal(armed.snapshot.fields['0-slot-mainhand'], 'diamond_sword');
+});
+
+test('manual settings, another species, passengers and prior turns prevent placeholder treatment', async () => {
+  operations = [];
+  for (const fields of [{ '0-name': 'Рыцарь' }, { '0-slot-head': 'diamond_helmet' },
+    { '0-eff-strength': true }, { '0-health': '75' }, { '0-persist': false }, { '0-name-visible': false }]) {
+    const snapshot = { ...untouchedZombie, fields: { ...untouchedZombie.fields, ...fields } };
+    const result = await call({ mode: 'summon', prompt: 'курица на свинье', snapshot });
+    assert.deepEqual(result.snapshot, snapshot);
+    assert.match(upstream.input.at(-1).content, /источник истины/);
+  }
+  for (const snapshot of [rider, { mobOrder: [{ mobType: 'pig' }], fields: { '0-mob': 'pig' } }]) {
+    await call({ mode: 'summon', prompt: 'курица на свинье', snapshot });
+    assert.match(upstream.input.at(-1).content, /источник истины/);
+  }
+  await call({ mode: 'summon', prompt: 'курица на свинье', snapshot: untouchedZombie,
+    history: [{ role: 'user', content: 'собери зомби' }, { role: 'assistant', content: 'Готово' }] });
+  assert.match(upstream.input.at(-1).content, /источник истины/);
+  await call({ mode: 'give', prompt: 'сделай меч', snapshot: defaultGiveSnapshot() });
+  assert.match(upstream.input.at(-1).content, /источник истины/);
+  assert.doesNotMatch(upstream.input.at(-1).content, /заполнитель/);
+});
