@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { CommandAssistant } from "../command-assistant/CommandAssistant";
 
 const EntityPreview = dynamic(() => import("./EntityPreview"), { ssr: false, loading: () => <p className="hint">Загрузка 3D-просмотра…</p> });
 import { ServerCommandExecutor } from "../ServerCommandExecutor";
@@ -199,9 +200,8 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
   const [show3d, setShow3d] = useState(false);
   const [coords, setCoords] = useState("~ ~ ~");
   const [presetId, setPresetId] = useState("");
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiNotes, setAiNotes] = useState<string[]>([]);
+  const [aiSession, setAiSession] = useState(0);
+  const snapshotRef = useRef(snapshot);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [toast, setToast] = useState("");
   const command = useMemo(() => buildSummonCommand(snapshot, coords), [snapshot, coords]);
@@ -209,7 +209,13 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
   const shouldShowAiAssistant = !adminMode || showAiAssistant;
 
   useEffect(() => {
-    if (initialSnapshot) setSnapshot(normalizeSnapshot(initialSnapshot));
+    if (initialSnapshot) {
+      const next = normalizeSnapshot(initialSnapshot);
+      if (JSON.stringify(next) === JSON.stringify(snapshotRef.current)) return;
+      snapshotRef.current = next;
+      setSnapshot(next);
+      setAiSession(value => value + 1);
+    }
   }, [initialSnapshot]);
 
   useEffect(() => {
@@ -224,6 +230,7 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
 
   function updateSnapshot(next: SummonSnapshot) {
     const normalized = normalizeSnapshot(next);
+    snapshotRef.current = normalized;
     setSnapshot(normalized);
     onSnapshotChange?.(normalized);
   }
@@ -263,38 +270,16 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
     navigator.clipboard.writeText(text).then(() => showToast("Скопировано"));
   }
 
-  async function generateFromDescription() {
-    const prompt = aiPrompt.trim();
-    if (!prompt) {
-      showToast("Опиши моба словами");
-      return;
-    }
-    setAiBusy(true);
-    setAiNotes([]);
-    try {
-      const response = await fetch("/api/ai/command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "summon", prompt }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || "Не получилось понять описание");
-      updateSnapshot(data.snapshot);
-      setPresetId("");
-      setAiNotes([data.summary, ...(data.notes || [])].filter(Boolean));
-      showToast("Описание применено");
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Не получилось понять описание");
-    } finally {
-      setAiBusy(false);
-    }
+  function loadSnapshot(next: SummonSnapshot) {
+    setAiSession(value => value + 1);
+    updateSnapshot(next);
   }
 
   function applyPreset(id: string) {
     setPresetId(id);
     const preset = presets.find((item) => item.id === id);
     if (!preset) return;
-    updateSnapshot({ mobOrder: preset.mobOrder, fields: preset.fields });
+    loadSnapshot({ mobOrder: preset.mobOrder, fields: preset.fields });
     showToast("Моб загружен");
   }
 
@@ -331,29 +316,21 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
         </section>
       ) : null}
 
-      {shouldShowAiAssistant ? (
-        <section className="panel ai-panel">
-          <h2>{adminMode ? "Собрать моба словами" : "Собрать словами"} <span className="sub">AI-помощник</span></h2>
-          <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder={adminMode ? "Например: скелет-наездник на пауке, оба светятся, скелет с луком на силу V и шлемом из золота" : "Например: зомби в незеритке с усталостью копания пятого уровня, мечом на остроту V и курицей-пассажиром"} rows={3} />
-          <div className="btn-row ai-actions">
-            <button type="button" onClick={generateFromDescription} disabled={aiBusy}>{aiBusy ? "Думаю..." : "Понять описание"}</button>
-            <button className="sec" type="button" onClick={() => setAiPrompt("")} disabled={aiBusy || !aiPrompt}>Очистить</button>
-          </div>
-          <p className="hint">{adminMode ? "Помощник заполнит поля текущего шаблона. Метаданные шаблона — ID, название, категорию и описание — сохрани отдельно." : "Модель получает списки мобов, предметов, эффектов, чар, слотов и правил этого генератора. Неизвестные ID сервер отбрасывает."}</p>
-          {aiNotes.length ? <ul className="ai-notes">{aiNotes.map((note, index) => <li key={`${note}-${index}`}>{note}</li>)}</ul> : null}
-        </section>
-      ) : null}
+      {shouldShowAiAssistant ? <CommandAssistant key={aiSession} mode="summon" snapshot={snapshot} normalize={normalizeSnapshot} adminMode={adminMode} onApply={next => {
+        updateSnapshot(next);
+        setPresetId("");
+      }} /> : null}
 
       {!adminMode ? (
         <section className="panel">
           <div className="fav-header"><h2>Коллекция любимчиков</h2><button className="small sec" type="button" onClick={addFavorite}>Сохранить текущего</button></div>
-          {favorites.length ? <div className="favorites-grid">{favorites.map((favorite) => <div className="fav-card" key={favorite.id}><div className="fav-name">{favorite.name}</div><div className="fav-sub">{ALL_MOBS[favorite.mobOrder[0]?.mobType] || favorite.mobOrder[0]?.mobType}</div><div className="fav-actions"><button className="small" type="button" onClick={() => updateSnapshot(favorite)}>Загрузить</button><button className="small sec" type="button" onClick={() => renameFavorite(favorite.id)}>Переименовать</button><button className="small info" type="button" onClick={() => copy(buildSummonCommand(favorite))}>Копировать</button><button className="small danger" type="button" onClick={() => saveFavorites(favorites.filter((item) => item.id !== favorite.id))}>Удалить</button></div></div>)}</div> : <p className="empty-favs">Пока пусто. Настрой моба и нажми “Сохранить текущего”.</p>}
+          {favorites.length ? <div className="favorites-grid">{favorites.map((favorite) => <div className="fav-card" key={favorite.id}><div className="fav-name">{favorite.name}</div><div className="fav-sub">{ALL_MOBS[favorite.mobOrder[0]?.mobType] || favorite.mobOrder[0]?.mobType}</div><div className="fav-actions"><button className="small" type="button" onClick={() => loadSnapshot(favorite)}>Загрузить</button><button className="small sec" type="button" onClick={() => renameFavorite(favorite.id)}>Переименовать</button><button className="small info" type="button" onClick={() => copy(buildSummonCommand(favorite))}>Копировать</button><button className="small danger" type="button" onClick={() => saveFavorites(favorites.filter((item) => item.id !== favorite.id))}>Удалить</button></div></div>)}</div> : <p className="empty-favs">Пока пусто. Настрой моба и нажми “Сохранить текущего”.</p>}
         </section>
       ) : null}
 
       {!adminMode ? (
         <section className="panel random-panel">
-          <button className="random" type="button" onClick={() => { setPresetId(""); updateSnapshot(makeRandomSnapshot()); showToast("Случайный моб готов"); }}>Случайно</button>
+          <button className="random" type="button" onClick={() => { setPresetId(""); loadSnapshot(makeRandomSnapshot()); showToast("Случайный моб готов"); }}>Случайно</button>
           <span className="hint">Собрать случайного моба с характеристиками, снаряжением, эффектами и пассажирами.</span>
         </section>
       ) : null}
@@ -375,7 +352,7 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
           <h2>Готовая команда</h2>
           <div id="command-output">{command}</div>
           <div className={`char-count${command.length > 256 ? " long" : ""}`}>Длина: {command.length} символов</div>
-          <div className="btn-row"><button type="button" onClick={() => copy()}>Копировать</button><button className="sec" type="button" onClick={() => showToast("Обновлено")}>Обновить</button><button className="danger" type="button" onClick={() => { if (window.confirm("Сбросить все настройки и пассажиров?")) updateSnapshot(toSnapshot(["zombie"])); }}>Сброс всего</button></div>
+          <div className="btn-row"><button type="button" onClick={() => copy()}>Копировать</button><button className="sec" type="button" onClick={() => showToast("Обновлено")}>Обновить</button><button className="danger" type="button" onClick={() => { if (window.confirm("Сбросить все настройки и пассажиров?")) loadSnapshot(toSnapshot(["zombie"])); }}>Сброс всего</button></div>
           {command.length > 256 ? <div className="warn">Команда длиннее 256 символов — в чат не поместится. Используй командный блок.</div> : null}
         </section>
       ) : null}

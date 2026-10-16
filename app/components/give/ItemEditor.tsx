@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CommandAssistant } from "../command-assistant/CommandAssistant";
 import { ServerCommandExecutor } from "../ServerCommandExecutor";
 import {
   ALL_ITEMS,
@@ -111,12 +112,17 @@ function asLibraryItemSnapshot(snapshot: GiveSnapshot): GiveSnapshot {
   };
 }
 
+function normalizeAiGiveSnapshot(snapshot: GiveSnapshot): GiveSnapshot {
+  const defaults = defaultGiveSnapshot();
+  return { ...defaults, ...snapshot, fields: { ...defaults.fields, ...snapshot.fields },
+    explosions: snapshot.explosions || [], shieldLayers: snapshot.shieldLayers || [],
+  };
+}
+
 export function ItemEditor({ adminMode = false, showAiAssistant = false, initialSnapshot, onSnapshotChange }: Props) {
   const [snapshot, setSnapshot] = useState<GiveSnapshot>(() => initialSnapshot || defaultGiveSnapshot());
   const [query, setQuery] = useState("");
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiNotes, setAiNotes] = useState<string[]>([]);
+  const [aiSession, setAiSession] = useState(0);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [toast, setToast] = useState("");
   const itemSnapshot = useMemo(
@@ -138,8 +144,13 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
   const autoTarget = itemSnapshot.targetCustom.trim() === "" && itemSnapshot.target === "@s" && longCommand;
   const potionMods = isPotion(selectedItem) ? potionOptions(selectedItem) : { hasLong: false, hasStrong: false };
 
+  const itemSnapshotRef = useRef(itemSnapshot);
+  useEffect(() => { itemSnapshotRef.current = itemSnapshot; }, [itemSnapshot]);
   useEffect(() => {
-    if (initialSnapshot) setSnapshot(initialSnapshot);
+    if (initialSnapshot && JSON.stringify(initialSnapshot) !== JSON.stringify(itemSnapshotRef.current)) {
+      setSnapshot(initialSnapshot);
+      setAiSession(value => value + 1);
+    }
   }, [initialSnapshot]);
 
   useEffect(() => {
@@ -204,6 +215,7 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
   function resetAll() {
     if (!window.confirm("Сбросить все параметры?")) return;
     setQuery("");
+    setAiSession(value => value + 1);
     setSnapshot(defaultGiveSnapshot());
   }
 
@@ -215,37 +227,9 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
       .catch(() => showToast("Не удалось скопировать"));
   }
 
-  async function generateFromDescription() {
-    const prompt = aiPrompt.trim();
-    if (!prompt) {
-      showToast("Опиши предмет словами");
-      return;
-    }
-    setAiBusy(true);
-    setAiNotes([]);
-    try {
-      const response = await fetch("/api/ai/command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "give", prompt }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || "Не получилось понять описание");
-      setQuery("");
-      setSnapshot({
-        ...defaultGiveSnapshot(),
-        ...data.snapshot,
-        fields: { ...defaultGiveSnapshot().fields, ...(data.snapshot?.fields || {}) },
-        explosions: data.snapshot?.explosions || [],
-        shieldLayers: data.snapshot?.shieldLayers?.length ? data.snapshot.shieldLayers : [freshShieldLayer()],
-      });
-      setAiNotes([data.summary, ...(data.notes || [])].filter(Boolean));
-      showToast("Описание применено");
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Не получилось понять описание");
-    } finally {
-      setAiBusy(false);
-    }
+  function applyAiSnapshot(next: GiveSnapshot) {
+    setQuery("");
+    setSnapshot(next);
   }
 
   function addFavorite() {
@@ -259,6 +243,8 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
   function loadFavorite(id: string) {
     const favorite = favorites.find((item) => item.id === id);
     if (!favorite || !window.confirm(`Заменить текущие параметры на «${favorite.name}»?`)) return;
+    setAiSession(value => value + 1);
+    setQuery("");
     setSnapshot({
       ...defaultGiveSnapshot(),
       ...favorite,
@@ -357,6 +343,7 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
       });
     }
     setQuery("");
+    setAiSession(value => value + 1);
     setSnapshot(next);
     showToast("Случайный предмет готов");
   }
@@ -397,16 +384,7 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
         </label>
       </section>
 
-      {shouldShowAiAssistant ? <section className="panel ai-panel">
-        <h2>Собрать словами <span className="sub">AI-помощник</span></h2>
-        <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="Например: незеритовый меч на остроту V и добычу III с именем Дедов аргумент, или бросаемое зелье силы II" rows={3} />
-        <div className="btn-row ai-actions">
-          <button type="button" onClick={generateFromDescription} disabled={aiBusy}>{aiBusy ? "Думаю..." : "Понять описание"}</button>
-          <button className="sec" type="button" onClick={() => setAiPrompt("")} disabled={aiBusy || !aiPrompt}>Очистить</button>
-        </div>
-        <p className="hint">Модель получает допустимые предметы, чары, зелья, эффекты, цвета, отделки и компоненты Minecraft 1.21.5. Сервер применяет только валидные поля.</p>
-        {aiNotes.length ? <ul className="ai-notes">{aiNotes.map((note, index) => <li key={`${note}-${index}`}>{note}</li>)}</ul> : null}
-      </section> : null}
+      {shouldShowAiAssistant ? <CommandAssistant key={aiSession} mode="give" snapshot={itemSnapshot} normalize={next => adminMode ? asLibraryItemSnapshot(normalizeAiGiveSnapshot(next)) : normalizeAiGiveSnapshot(next)} adminMode={adminMode} onApply={applyAiSnapshot} /> : null}
 
       {!adminMode ? <section className="panel">
         <div className="fav-header"><h2>Коллекция</h2><button className="small sec" type="button" onClick={addFavorite}>Сохранить</button></div>
