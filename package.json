@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:entity-preview": "tsc app/components/summon/data.ts app/components/summon/engine.ts app/components/summon/preview-scene.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2020 --skipLibCheck --esModuleInterop && node --test tests/entity-preview.test.mjs",
+    "test:entity-preview": "tsc app/components/summon/preview-material.ts app/components/summon/data.ts app/components/summon/engine.ts app/components/summon/preview-scene.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2020 --skipLibCheck --esModuleInterop && node --test tests/entity-preview.test.mjs",
     "prebuild": "node tools/entity-export/restore-bundle.mjs && npm run test:entity-preview"
   },
   "dependencies": {

@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { buildPreviewScene, placePreviewEntity, isPreviewSupported, PREVIEW_ROOT, PREVIEW_VERSION, type SceneEntity } from "./preview-scene";
 import { DYE_COLORS, type SummonSnapshot } from "./data";
+import { createPreviewMaterial } from "./preview-material";
 
 type CapturedMesh = { vertices: number[][]; texture?: string; pipeline: string };
 type CapturedPose = { body: string[]; attachments: Record<string, { matrix: number[]; context: string }>; equipment: Record<string, Record<string, string[]>> };
@@ -24,7 +25,7 @@ function dispose(root: THREE.Object3D) {
   root.traverse(o => { if (o instanceof THREE.Mesh) { o.geometry.dispose(); for (const m of Array.isArray(o.material) ? o.material : [o.material]) { materials.add(m); if (m.map) textures.add(m.map); } } });
   materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose());
 }
-async function capturedMesh(data: CapturedMesh, options: { texture?: string; color?: string; overlay?: boolean } = {}) {
+async function capturedMesh(data: CapturedMesh, options: { texture?: string; color?: string; overlayOrder?: number; blendOverlay?: boolean } = {}) {
   const positions: number[] = [], uvs: number[] = [], colors: number[] = [], normals: number[] = [];
   const color = new THREE.Color();
   for (let q = 0; q < data.vertices.length; q += 4) for (const offset of [0,1,2,0,2,3]) {
@@ -34,8 +35,8 @@ async function capturedMesh(data: CapturedMesh, options: { texture?: string; col
   const geometry = new THREE.BufferGeometry(); geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3)); geometry.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2)); geometry.setAttribute("normal",new THREE.Float32BufferAttribute(normals,3)); geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,4));
   try {
     const path=options.texture || data.texture;
-    const mat=new THREE.MeshBasicMaterial({ map:path ? await texture(path) : null, color:options.color || "#ffffff", vertexColors:true, side:THREE.DoubleSide, alphaTest:0.01, transparent:data.pipeline.includes("translucent") || !path || data.vertices.some(v=>v[11]<1), polygonOffset:!!options.overlay, polygonOffsetFactor:options.overlay ? -1 : 0, polygonOffsetUnits:options.overlay ? -1 : 0 });
-    const mesh=new THREE.Mesh(geometry,mat); if(options.overlay)mesh.renderOrder=1; return mesh;
+    const mat=createPreviewMaterial({ map:path ? await texture(path) : null, color:options.color, translucent:data.pipeline.includes("translucent") || !path || data.vertices.some(v=>v[11]<1), overlayOrder:options.overlayOrder, blendOverlay:options.blendOverlay });
+    const mesh=new THREE.Mesh(geometry,mat); mesh.renderOrder=options.overlayOrder || 0; return mesh;
   } catch(e) { geometry.dispose(); throw e; }
 }
 const dyeColors = Object.fromEntries(DYE_COLORS.map(([id,,hex]) => [id,hex]));
@@ -53,12 +54,12 @@ async function addMeshes(group: THREE.Group, refs: string[], input: SceneEntity,
       const layer=path.includes("humanoid_leggings") ? "humanoid_leggings" : "humanoid";
       const armor=gear.item.split("_")[0].replace("golden","gold"); const mat=gear.trim.material;
       const palette=mat+(armor===mat && ["iron","gold","diamond","netherite"].includes(mat) ? "_darker" : "");
-      group.add(await capturedMesh(m,{texture:`minecraft:textures/trims/entity/${layer}/${gear.trim.pattern}_${palette}.png`,color:"#ffffff",overlay:true}));
+      group.add(await capturedMesh(m,{texture:`minecraft:textures/trims/entity/${layer}/${gear.trim.pattern}_${palette}.png`,color:"#ffffff",overlayOrder:1}));
     }
     if(gear?.banner && (path?.endsWith("/banner/base.png") || path?.endsWith("/shield/shield_base.png"))) {
       const folder=gear.item==="shield" ? "shield" : "banner";
       const layers=folder==="shield" ? [{pattern:"base",color:gear.banner.base},...gear.banner.layers] : gear.banner.layers;
-      for(const layer of layers)group.add(await capturedMesh(m,{texture:`minecraft:textures/entity/${folder}/${layer.pattern}.png`,color:dyeColors[layer.color] || "#ffffff",overlay:true}));
+      for(const [index,layer] of layers.entries())group.add(await capturedMesh(m,{texture:`minecraft:textures/entity/${folder}/${layer.pattern}.png`,color:dyeColors[layer.color] || "#ffffff",overlayOrder:index+1,blendOverlay:true}));
     }
   }
 }

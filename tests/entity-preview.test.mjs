@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as THREE from 'three';
+import { createPreviewMaterial } from '../.test-build/components/summon/preview-material.js';
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { buildPreviewScene, isPreviewSupported, placePreviewEntity } from '../.test-build/components/summon/preview-scene.js';
@@ -123,4 +125,30 @@ test('prepared meshes, including tridents and banner poles, contain visible vert
  for(const path of Object.keys(asset('manifest.json').files).filter(p=>p.startsWith('meshes/'))){
   const mesh=asset(path);assert.ok(mesh.vertices.some(v=>v[11]>0),path);
  }
+});
+
+
+test('banner gradients blend over prior patterns without writing depth',()=>{
+ const material=createPreviewMaterial({map:null,translucent:false,overlayOrder:5,blendOverlay:true});
+ assert.equal(material.transparent,true);
+ assert.equal(material.blending,THREE.NormalBlending);
+ assert.equal(material.depthWrite,false);
+ assert.equal(material.depthTest,true);
+ assert.equal(material.forceSinglePass,true);
+ const base=createPreviewMaterial({map:null,translucent:false});
+ assert.equal(base.transparent,false);assert.equal(base.depthWrite,true);
+ const trim=createPreviewMaterial({map:null,translucent:false,overlayOrder:1});
+ assert.equal(trim.transparent,false);assert.equal(trim.depthWrite,true);
+ material.dispose();base.dispose();trim.dispose();
+});
+
+test('reported shield preserves all five ordered patterns, including gradient then Mojang',()=>{
+ const layers=[['triangles_bottom','yellow'],['triangles_top','orange'],['rhombus','black'],['gradient','red'],['mojang','red']];
+ const snapshot=toSnapshot(['zombie']);
+ Object.assign(snapshot.fields,{'0-slot-offhand':'shield','0-shieldon-offhand':true,'0-shieldbase-offhand':'black'});
+ for(const [i,[pattern,color]] of layers.entries())Object.assign(snapshot.fields,{[`0-shieldpat-offhand-${i}`]:pattern,[`0-shieldcolor-offhand-${i}`]:color});
+ assert.deepEqual(buildPreviewScene(snapshot)[0].equipment[0].banner,{base:'black',layers:layers.map(([pattern,color])=>({pattern,color}))});
+ const command=buildSummonCommand(snapshot);
+ let previous=-1;
+ for(const [pattern,color] of layers){const position=command.indexOf(`{pattern:"minecraft:${pattern}",color:"${color}"}`);assert.ok(position>previous);previous=position;}
 });
