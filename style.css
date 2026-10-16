@@ -1239,3 +1239,11 @@ dialog.entity-preview:modal { position: fixed; inset: 0; margin: auto; width: ca
   dialog.entity-preview:modal { width: calc(100% - 12px); height: calc(100dvh - 12px); padding: 10px; border-radius: 10px; }
   .entity-preview:modal .entity-preview-notes { max-height: 12dvh; }
 }
+
+  .ai-history { max-height: 320px; overflow-y: auto; margin-bottom: 16px; overflow-wrap: anywhere; }
+  .ai-turn { border-left: 2px solid var(--accent-3); padding: 8px 12px; margin: 8px 0; font-size: 13px; }
+  .ai-turn p { margin: 0 0 8px; white-space: pre-wrap; }
+  .ai-turn .ai-notes { margin-top: 4px; }
+
+  .voice-actions { margin-top: 10px; }
+  .voice-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }

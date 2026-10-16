@@ -1,8 +1,12 @@
+import { commandAiHistory, parseGiveAiSnapshot } from "../../../server/command-ai-context";
 import {
   ALL_ITEMS,
   ALL_MOBS,
   BANNER_PATTERNS,
   COMMAND_LEVEL_MAX,
+  canHaveTrim,
+  supportsBannerPatterns,
+  FOOD_ITEMS,
   DYE_COLORS,
   EFFECTS,
   enchantsForItem,
@@ -14,7 +18,7 @@ import {
   TRIM_PATTERNS,
   type EnchantInfo,
 } from "../../../components/minecraft/data";
-import { defaultGiveSnapshot, isPotion, potionOptions, type Explosion, type GiveFieldValue, type GiveSnapshot, type ShieldLayer } from "../../../components/give/engine";
+import { defaultGiveSnapshot, isPotion, potionOptions, type Explosion, type GiveFieldValue, type GiveSnapshot } from "../../../components/give/engine";
 import { normalizeSnapshot, toSnapshot } from "../../../components/summon/engine";
 import type { SummonFieldValue, SummonSnapshot } from "../../../components/summon/data";
 
@@ -128,29 +132,53 @@ export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return Response.json({ error: "OPENAI_API_KEY не настроен на сервере." }, { status: 503 });
 
-  let body: { mode?: Mode; prompt?: string };
+  let body: { mode?: Mode; prompt?: unknown; snapshot?: unknown; history?: unknown };
   try {
     body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid body");
   } catch {
     return Response.json({ error: "Некорректный JSON запроса." }, { status: 400 });
   }
 
   const mode = body.mode;
-  const prompt = body.prompt?.trim() || "";
+  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
   if (mode !== "summon" && mode !== "give") return Response.json({ error: "Неизвестный режим генератора." }, { status: 400 });
   if (prompt.length < 3) return Response.json({ error: "Опиши, что нужно собрать." }, { status: 400 });
   if (prompt.length > 1500) return Response.json({ error: "Описание слишком длинное. Сократи его до 1500 символов." }, { status: 400 });
 
+  let current: SummonSnapshot | undefined;
+  let currentGive: GiveSnapshot | undefined;
+  const history = commandAiHistory(body.history);
+  if (mode === "summon") {
+    if (body.snapshot !== undefined) {
+      const raw = body.snapshot as SummonSnapshot;
+      if (!raw || !Array.isArray(raw.mobOrder) || !raw.mobOrder.length || raw.mobOrder.length > maxMobs ||
+          raw.mobOrder.some(mob => !mob || !validMobs.has(mob.mobType)) ||
+          !raw.fields || typeof raw.fields !== "object" || Array.isArray(raw.fields) ||
+          Object.keys(raw.fields).length > 10000 ||
+          Object.entries(raw.fields).some(([key, value]) => !/^[0-5]-[a-z0-9-]+$/.test(key) ||
+            !(value === null || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value)) || (typeof value === "string" && value.length <= 1000)))) {
+        return Response.json({ error: "Некорректное состояние моба." }, { status: 400 });
+      }
+      current = normalizeSnapshot(raw);
+      if (current.mobOrder.some(mob => !validMobs.has(mob.mobType))) return Response.json({ error: "Неизвестный моб." }, { status: 400 });
+    }
+  } else if (body.snapshot !== undefined) {
+    const parsed = parseGiveAiSnapshot(body.snapshot);
+    if (!parsed) return Response.json({ error: "Некорректное состояние предмета." }, { status: 400 });
+    currentGive = parsed;
+  }
+
   try {
-    const plan = await requestAiPlan(apiKey, mode, prompt);
-    const result = mode === "summon" ? applySummonPlan(plan) : applyGivePlan(plan, prompt);
+    const plan = await requestAiPlan(apiKey, mode, prompt, current || currentGive, history);
+    const result = mode === "summon" ? applySummonPlan(plan, current) : applyGivePlan(plan, prompt, currentGive);
     return Response.json({ ...result, summary: plan.summary, notes: plan.notes.slice(0, 5) });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Не получилось обработать описание." }, { status: 502 });
   }
 }
 
-async function requestAiPlan(apiKey: string, mode: Mode, prompt: string): Promise<AiPlan> {
+async function requestAiPlan(apiKey: string, mode: Mode, prompt: string, current?: SummonSnapshot | GiveSnapshot, history: Array<{ role: "user" | "assistant"; content: string }> = []): Promise<AiPlan> {
   const response = await fetch(OPENAI_URL, {
     method: "POST",
     headers: {
@@ -165,7 +193,8 @@ async function requestAiPlan(apiKey: string, mode: Mode, prompt: string): Promis
       ...promptCacheRetentionOptions(),
       input: [
         { role: "system", content: buildSystemPrompt(mode) },
-        { role: "user", content: prompt },
+        ...history,
+        { role: "user", content: current ? `Текущее состояние редактора (источник истины, включая ручные правки):\n${JSON.stringify(current)}\nНовый запрос: ${prompt}` : prompt },
       ],
       text: {
         format: {
@@ -211,9 +240,11 @@ function buildSystemPrompt(mode: Mode) {
     return [
       ...common,
       "Режим summon. Нужно заполнить редактор мобов и пассажиров.",
+      "Если передано текущее состояние, меняй только то, что просит НОВЫЙ запрос. Сохраняй остальные поля и пассажиров. История нужна для понимания ссылок, а текущее состояние важнее истории; не повторяй старые операции. Если состояния нет, собери с нуля.",
+      "Удаление: remove_mob(index) удаляет только пассажира (index >= 1), следующие индексы сдвигаются вниз; несколько удаляй с конца. clear_equipment(index,slot) удаляет предмет и все его настройки; remove_effect(index,effectId); remove_equipment_enchant(index,slot,enchantId). Для снятия флага set_boolean value=false, очистки имени set_text value=пустая строка, сброса числа reset_number(index,field). Снять окраску или отделку: clear_equipment_dye(index,slot), clear_equipment_trim(index,slot).",
       "Операции summon: set_mob(index,mobType), set_text(index,field,value), set_boolean(index,field,value), set_number(index,field,value), set_equipment(index,slot,itemId,count,dropChance), set_equipment_enchant(index,slot,enchantId,level), set_equipment_trim(index,slot,material,pattern), set_equipment_dye(index,slot,color), set_effect(index,effectId,level,durationSeconds).",
       "index 0 — основной нижний моб. index 1 сидит на index 0, index 2 сидит на index 1. Для пассажиров сначала делай set_mob с нужным index.",
-      "dropChance заполняй только если пользователь явно просит шанс выпадения; иначе null.",
+      "dropChance заполняй только если пользователь явно просит шанс выпадения; иначе не указывай.",
       "Если просят 'в незеритке', поставь полный netherite armor: head/chest/legs/feet. Оружие клади в mainhand, щит/тотем в offhand.",
       `Мобы: ${formatGrouped(MOB_GROUPS, "mobs")}.`,
       `Слоты summon: ${SUMMON_EQUIPMENT_SLOTS.map((slot) => `${slot.key}=[${slot.items.join(", ")}]`).join("; ")}.`,
@@ -225,6 +256,10 @@ function buildSystemPrompt(mode: Mode) {
   return [
     ...common,
     "Режим give. Нужно заполнить редактор выдачи предмета.",
+    "Если передано текущее состояние, верни ТОЛЬКО изменения из нового запроса. Сохраняй остальные поля, имя, лор, количество, получателя, слои узора и взрывы. Состояние важнее истории; не повторяй старые операции. Без состояния собери с нуля.",
+    "Удаление: remove_enchant(enchantId); reset_field(field) сбрасывает поле (имя, лор, числовую настройку) к значению по умолчанию. set_boolean value=false отключает dye-on, trim-on, shield-on, totem-on и прочие флаги. remove_food_effect(index), remove_totem_effect(index), remove_shield_layer(index), clear_shield_layers(), remove_firework(index), clear_fireworks(). Не добавляй чары, которые пользователь просит убрать.",
+    "set_text поддерживает lore-0..lore-4, lore-color-0..lore-color-4. set_shield(color) меняет только базовый цвет; set_shield(pattern,color,index) меняет слой узора, index=текущая длина добавляет слой. set_firework(index,shape,colors,fadeColors,trail,twinkle) меняет только указанные свойства взрыва; index=текущая длина добавляет взрыв. Нумерация всех массивов с 0.",
+    "При смене предмета сохраняй совместимые настройки и предупреди о несовместимых. Не ставь сброс количества или получателя без явной просьбы.",
     "Операции give: set_item(itemId), set_count(count), set_target(target), set_text(field,value), set_boolean(field,value), set_enchant(enchantId,level), set_trim(material,pattern), set_dye(color), set_shield(color,pattern), set_potion(potionType,potionModifier), set_food_effect(index,effectId,level,durationSeconds), set_totem_effect(index,effectId,level,durationSeconds), set_firework(shape,colors,fadeColors,trail,twinkle).",
     "Для зелий itemId имеет формат potion:effect, а potionType выбирает предмет: potion/splash_potion/lingering_potion/tipped_arrow.",
     `Предметы: ${formatGrouped(GIVE_ITEM_GROUPS, "items")}.`,
@@ -280,17 +315,47 @@ function coercePlan(value: unknown): AiPlan {
   };
 }
 
-function applySummonPlan(plan: AiPlan): { snapshot: SummonSnapshot } {
-  let snapshot = toSnapshot(["zombie"]);
+function applySummonPlan(plan: AiPlan, current?: SummonSnapshot): { snapshot: SummonSnapshot } {
+  let snapshot = current ? normalizeSnapshot(current) : toSnapshot(["zombie"]);
   for (const op of plan.operations) {
-    const index = clampInt(op.index ?? 0, 0, maxMobs - 1);
+    const index = op.index ?? 0;
+    if (!Number.isInteger(index) || index < 0 || index >= maxMobs) continue;
+    if (op.action === "remove_mob") {
+      if (index === 0 || !snapshot.mobOrder[index]) continue;
+      const fields: SummonSnapshot["fields"] = {};
+      for (const [key, value] of Object.entries(snapshot.fields)) {
+        const match = /^(\d+)-(.*)$/.exec(key);
+        if (!match || Number(match[1]) === index) continue;
+        const oldIndex = Number(match[1]);
+        fields[`${oldIndex > index ? oldIndex - 1 : oldIndex}-${match[2]}`] = value;
+      }
+      snapshot = normalizeSnapshot({ mobOrder: snapshot.mobOrder.filter((_, i) => i !== index), fields });
+      continue;
+    }
     if (op.action === "set_mob" && op.mobType && validMobs.has(op.mobType)) {
       snapshot = ensureSummonIndex(snapshot, index, op.mobType);
       snapshot = setSummonField(snapshot, index, "mob", op.mobType);
       continue;
     }
-    snapshot = ensureSummonIndex(snapshot, index);
-    if (op.action === "set_text" && op.field && summonTextFields.has(op.field) && op.value !== undefined && op.value !== null) {
+    if (!snapshot.mobOrder[index]) continue;
+    if (op.action === "clear_equipment" && op.slot && validSlots.has(op.slot)) {
+      const slot = op.slot;
+      snapshot = { ...snapshot, fields: Object.fromEntries(Object.entries(snapshot.fields).filter(([key]) => {
+        if (!key.startsWith(`${index}-`)) return true;
+        const field = key.slice(`${index}-`.length);
+        return !["slot", "count", "drop", "dyeon", "dye", "trimon", "trimmat", "trimpat", "shieldon", "shieldbase"].some(prefix => field === `${prefix}-${slot}`) &&
+          !["ench", "enchlvl", "shieldpat", "shieldcolor"].some(prefix => field.startsWith(`${prefix}-${slot}-`));
+      })) };
+    } else if (op.action === "remove_effect" && op.effectId && validEffects.has(op.effectId)) {
+      snapshot = setSummonField(snapshot, index, `eff-${op.effectId}`, false);
+    } else if (op.action === "remove_equipment_enchant" && op.slot && validSlots.has(op.slot) && op.enchantId) {
+      const enchantId = normalizeEnchantId(String(snapshot.fields[`${index}-slot-${op.slot}`] || ""), op.enchantId);
+      if (enchantId) snapshot = setSummonField(snapshot, index, `ench-${op.slot}-${enchantId}`, false);
+    } else if ((op.action === "clear_equipment_dye" || op.action === "clear_equipment_trim") && op.slot && validSlots.has(op.slot)) {
+      snapshot = setSummonField(snapshot, index, `${op.action === "clear_equipment_dye" ? "dyeon" : "trimon"}-${op.slot}`, false);
+    } else if (op.action === "reset_number" && op.field && summonNumberFields.has(op.field)) {
+      snapshot = setSummonField(snapshot, index, op.field, "");
+    } else if (op.action === "set_text" && op.field && summonTextFields.has(op.field) && op.value !== undefined && op.value !== null) {
       const value = String(op.value).slice(0, 80);
       if (op.field === "name-color" && !nameColors.has(value)) continue;
       snapshot = setSummonField(snapshot, index, op.field, value);
@@ -325,20 +390,20 @@ function applySummonPlan(plan: AiPlan): { snapshot: SummonSnapshot } {
   return { snapshot: normalizeSnapshot(snapshot) };
 }
 
-function applyGivePlan(plan: AiPlan, prompt: string): { snapshot: GiveSnapshot } {
-  const snapshot = defaultGiveSnapshot();
+function applyGivePlan(plan: AiPlan, prompt: string, current?: GiveSnapshot): { snapshot: GiveSnapshot } {
+  const snapshot = current ? structuredClone(current) : defaultGiveSnapshot();
   for (const op of plan.operations) {
     if (op.action === "set_item" && op.itemId && validGiveItems.has(op.itemId)) {
       snapshot.itemId = op.itemId;
-      if (isPotion(op.itemId)) snapshot.potionType = "potion";
+      if (isPotion(op.itemId) && !isPotion(current?.itemId || "")) snapshot.potionType = "potion";
     } else if (op.action === "set_count") {
       snapshot.count = String(clampInt(op.count ?? numberFromValue(op.value, 1), 1, 64));
     } else if (op.action === "set_target" && op.target) {
-      if (validGiveTargets.has(op.target)) snapshot.target = op.target;
+      if (validGiveTargets.has(op.target)) { snapshot.target = op.target; snapshot.targetCustom = ""; }
       else if (op.target.startsWith("@")) snapshot.targetCustom = op.target.slice(0, 120);
-    } else if (op.action === "set_text" && op.field && giveTextFields.has(op.field) && op.value !== undefined && op.value !== null) {
+    } else if (op.action === "set_text" && op.field && (giveTextFields.has(op.field) || /^lore-(?:color-)?[0-4]$/.test(op.field)) && op.value !== undefined && op.value !== null) {
       const value = String(op.value).slice(0, 120);
-      if (op.field === "name-color" && !nameColors.has(value)) continue;
+      if ((op.field === "name-color" || op.field.startsWith("lore-color-")) && !nameColors.has(value)) continue;
       if (op.field === "dye-color" && !isHexColor(value)) continue;
       if (op.field === "trim-mat" && !validTrimMaterials.has(value)) continue;
       if (op.field === "trim-pat" && !validTrimPatterns.has(value)) continue;
@@ -360,8 +425,15 @@ function applyGivePlan(plan: AiPlan, prompt: string): { snapshot: GiveSnapshot }
       snapshot.fields["dye-color"] = op.color || "#a06540";
     } else if (op.action === "set_shield") {
       snapshot.fields["shield-on"] = true;
-      if (validColors.has(op.color || "")) snapshot.fields["shield-base"] = op.color || "white";
-      if (validBannerPatterns.has(op.pattern || "")) snapshot.shieldLayers = [freshShieldLayer(op.pattern || "stripe_center", "black")];
+      if (!op.pattern && validColors.has(op.color || "")) snapshot.fields["shield-base"] = op.color || "white";
+      if (validBannerPatterns.has(op.pattern || "")) {
+        const index = op.index ?? 0;
+        if (Number.isInteger(index) && index >= 0 && index <= snapshot.shieldLayers.length && index < 16) {
+          const previous = snapshot.shieldLayers[index];
+          snapshot.shieldLayers[index] = { id: previous?.id ?? Date.now() + Math.random(), pattern: op.pattern!,
+            color: validColors.has(op.color || "") ? op.color! : previous?.color || "black" };
+        }
+      }
     } else if (op.action === "set_potion") {
       applyPotion(snapshot, op);
     } else if (op.action === "set_food_effect" && op.effectId && validEffects.has(op.effectId)) {
@@ -370,11 +442,66 @@ function applyGivePlan(plan: AiPlan, prompt: string): { snapshot: GiveSnapshot }
       snapshot.fields["totem-on"] = true;
       setGiveEffect(snapshot.fields, "totem", clampInt(op.index ?? 0, 0, 2), op.effectId, op.level, op.durationSeconds);
     } else if (op.action === "set_firework") {
+      const index = op.index ?? 0;
+      if (!Number.isInteger(index) || index < 0 || index > snapshot.explosions.length || index >= 8) continue;
       snapshot.itemId = "firework_rocket";
-      snapshot.explosions = [freshExplosion(op)];
+      const previous = snapshot.explosions[index];
+      snapshot.explosions[index] = freshExplosion({ ...previous, ...op });
+      if (previous) snapshot.explosions[index].id = previous.id;
+    } else if (op.action === "remove_enchant" && op.enchantId) {
+      const enchantId = normalizeEnchantId(snapshot.itemId, op.enchantId);
+      if (enchantId) {
+        delete snapshot.fields[`ench-${enchantId}`];
+        delete snapshot.fields[`enchlvl-${enchantId}`];
+      }
+    } else if (op.action === "reset_field" && op.field &&
+      (giveTextFields.has(op.field) || giveBooleanFields.has(op.field) || /^lore-(?:color-)?[0-4]$/.test(op.field))) {
+      const fallback = defaultGiveSnapshot().fields[op.field];
+      if (fallback === undefined) delete snapshot.fields[op.field];
+      else snapshot.fields[op.field] = fallback;
+    } else if ((op.action === "remove_food_effect" || op.action === "remove_totem_effect") && Number.isInteger(op.index)) {
+      const prefix = op.action === "remove_food_effect" ? "food" : "totem";
+      if (op.index! >= 0 && op.index! < (prefix === "food" ? 5 : 3)) snapshot.fields[`${prefix}-eff-on-${op.index}`] = false;
+    } else if (op.action === "remove_shield_layer" && Number.isInteger(op.index) && op.index! >= 0) {
+      snapshot.shieldLayers = snapshot.shieldLayers.filter((_, index) => index !== op.index);
+    } else if (op.action === "clear_shield_layers") {
+      snapshot.shieldLayers = [];
+    } else if (op.action === "remove_firework" && Number.isInteger(op.index) && op.index! >= 0) {
+      snapshot.explosions = snapshot.explosions.filter((_, index) => index !== op.index);
+    } else if (op.action === "clear_fireworks") {
+      snapshot.explosions = [];
     }
   }
-  applyGivePromptFallbacks(snapshot, prompt);
+  // Text fallbacks are only for fresh descriptions; refinements may explicitly remove an enchantment.
+  if (!current && !plan.operations.some(op => op.action === "remove_enchant") && !/(убер|убра|удал|сним|без |не добав|не нуж|не надо)/iu.test(prompt)) applyGivePromptFallbacks(snapshot, prompt);
+  for (const key of Object.keys(snapshot.fields)) {
+    if (!key.startsWith("ench-")) continue;
+    const enchantId = key.slice(5);
+    if (!enchantAllowed(snapshot.itemId, enchantId)) {
+      if (snapshot.fields[key] === true || snapshot.fields[key] === "true") {
+        plan.notes.push(`Зачарование ${enchantId} не подходит для выбранного предмета и убрано.`);
+      }
+      delete snapshot.fields[key];
+      delete snapshot.fields[`enchlvl-${enchantId}`];
+    }
+  }
+  if (current && current.itemId !== snapshot.itemId) {
+    const enabled = (field: string) => snapshot.fields[field] === true || snapshot.fields[field] === "true";
+    const ignored: string[] = [];
+    if (enabled("dye-on") && !snapshot.itemId.startsWith("leather_")) ignored.push("окраска кожи");
+    if (enabled("trim-on") && !canHaveTrim(snapshot.itemId)) ignored.push("отделка брони");
+    if (enabled("shield-on") && !supportsBannerPatterns(snapshot.itemId)) ignored.push("узоры щита или флага");
+    if (snapshot.explosions.length && snapshot.itemId !== "firework_rocket") ignored.push("взрывы фейерверка");
+    if (!FOOD_ITEMS.has(snapshot.itemId) && Object.keys(snapshot.fields).some(key => /^food-eff-on-/.test(key) && enabled(key))) ignored.push("эффекты еды");
+    if (ignored.length) plan.notes.push(`Для выбранного предмета не применяются: ${ignored.join(", ")}. Эти настройки не входят в команду.`);
+  }
+  if (isPotion(snapshot.itemId)) {
+    const options = potionOptions(snapshot.itemId);
+    if ((snapshot.potionModifier === "long" && !options.hasLong) || (snapshot.potionModifier === "strong" && !options.hasStrong)) {
+      snapshot.potionModifier = "normal";
+      plan.notes.push("Выбранное зелье не поддерживает прежнее усиление или длительность; установлен обычный вариант.");
+    }
+  }
   return { snapshot };
 }
 
@@ -448,17 +575,16 @@ function applyPotion(snapshot: GiveSnapshot, op: AiOperation) {
   }
 }
 
-function setGiveEffect(fields: Record<string, GiveFieldValue>, kind: "food" | "totem", index: number, effectId: string, level = 1, durationSeconds = 10) {
+function setGiveEffect(fields: Record<string, GiveFieldValue>, kind: "food" | "totem", index: number, effectId: string, level?: number, durationSeconds?: number) {
   const prefix = kind === "food" ? "food-eff" : "totem-eff";
+  const existing = fields[`${prefix}-${index}`] === effectId;
+  const amplifier = level === undefined && existing ? numberFromValue(fields[`${prefix}-amp-${index}`], 0) : (level ?? 1) - 1;
+  const duration = durationSeconds === undefined && existing ? numberFromValue(fields[`${prefix}-dur-${index}`], 200) : (durationSeconds ?? 10) * 20;
   fields[`${prefix}-on-${index}`] = true;
   fields[`${prefix}-${index}`] = effectId;
-  fields[`${prefix}-amp-${index}`] = String(clampInt(level - 1, 0, 255));
-  fields[`${prefix}-dur-${index}`] = String(clampInt(durationSeconds * 20, 1, 1000000));
-  if (kind === "food") fields[`${prefix}-prob-${index}`] = "1.0";
-}
-
-function freshShieldLayer(pattern: string, color: string): ShieldLayer {
-  return { id: Date.now() + Math.random(), pattern, color };
+  fields[`${prefix}-amp-${index}`] = String(clampInt(amplifier, 0, 255));
+  fields[`${prefix}-dur-${index}`] = String(clampInt(duration, 1, 1000000));
+  if (kind === "food" && fields[`${prefix}-prob-${index}`] === undefined) fields[`${prefix}-prob-${index}`] = "1.0";
 }
 
 function freshExplosion(op: AiOperation): Explosion {

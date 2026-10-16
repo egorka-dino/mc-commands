@@ -4,6 +4,7 @@ import {
   canHaveTrim,
   DYE_COLORS,
   EFFECTS,
+  enchantsForItem,
   ENCHANTS,
   FOOD_ITEMS,
   POTIONS,
@@ -162,7 +163,7 @@ function buildComponents(snapshot: GiveSnapshot) {
   if (loreLines.length) comps.push(`lore=[${loreLines.join(",")}]`);
 
   const enchantParts = Object.entries(snapshot.fields)
-    .filter(([key, value]) => key.startsWith("ench-") && (value === true || value === "true"))
+    .filter(([key, value]) => key.startsWith("ench-") && (value === true || value === "true") && enchantsForItem(rawItemId).some(enchant => enchant.id === key.slice(5)))
     .map(([key]) => {
       const enchId = key.slice("ench-".length);
       const level = Math.max(1, Number.parseInt(stringValue(snapshot, `enchlvl-${enchId}`, "1"), 10) || 1);
@@ -280,7 +281,7 @@ export function getGivePreviewData(snapshot: GiveSnapshot) {
   }
 
   const enchantments = Object.entries(snapshot.fields)
-    .filter(([key, value]) => key.startsWith("ench-") && (value === true || value === "true"))
+    .filter(([key, value]) => key.startsWith("ench-") && (value === true || value === "true") && enchantsForItem(rawItemId).some(enchant => enchant.id === key.slice(5)))
     .map(([key]) => {
       const enchId = key.slice("ench-".length);
       const level = Math.max(1, Number.parseInt(stringValue(snapshot, `enchlvl-${enchId}`, "1"), 10) || 1);

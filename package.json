@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test:command-ai": "tsc app/api/ai/command/route.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2020 --skipLibCheck --esModuleInterop && node --test tests/command-ai.test.mjs",
+    "test:voice-input": "tsc app/components/summon/voice-input.ts --rootDir app --outDir .test-build --module commonjs --target es2020 --skipLibCheck && node --test tests/voice-input.test.mjs",
     "test:entity-preview": "tsc app/components/summon/data.ts app/components/summon/engine.ts app/components/summon/preview-scene.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2020 --skipLibCheck --esModuleInterop && node --test tests/entity-preview.test.mjs",
     "prebuild": "node tools/entity-export/restore-bundle.mjs && npm run test:entity-preview"
   },
