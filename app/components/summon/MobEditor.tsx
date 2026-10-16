@@ -366,12 +366,8 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
 
       <section className="panel preview-panel"><h2>Предпросмотр</h2>
         <div className="entity-preview-controls"><button type="button" className="small" onClick={() => setShow3d(value => !value)}>{show3d ? "Скрыть 3D" : "Показать 3D"}</button>
-        <button type="button" className="small" onClick={() => {
-          const example = toSnapshot(["horse", "zombie", "skeleton"]);
-          Object.assign(example.fields, { "0-horse-coat": "4", "1-slot-head": "diamond_helmet", "1-slot-chest": "diamond_chestplate", "1-slot-legs": "diamond_leggings", "1-slot-feet": "diamond_boots", "1-slot-mainhand": "diamond_sword", "2-slot-mainhand": "bow" });
-          setSnapshot(normalizeSnapshot(example)); setShow3d(true);
-        }}>Загрузить пример в редактор</button></div>
-        {show3d ? <EntityPreview snapshot={snapshot} /> : <p className="hint">3D для пяти семейств мобов, брони и пассажиров. Загружается по кнопке.</p>}
+</div>
+        {show3d ? <EntityPreview snapshot={snapshot} /> : <p className="hint">3D для всех сущностей каталога, снаряжения и пассажиров. Загружается по кнопке.</p>}
         <Preview snapshot={snapshot} /></section>
 
       {!adminMode ? (
