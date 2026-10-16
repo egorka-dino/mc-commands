@@ -19,7 +19,7 @@ export function parseGiveAiSnapshot(value: unknown): GiveSnapshot | null {
       typeof value.targetCustom !== "string" || value.targetCustom.length > 120 ||
       typeof value.count !== "string" || !/^\d{1,2}$/.test(value.count) || Number(value.count) < 1 || Number(value.count) > 64 ||
       !record(value.fields) || Object.keys(value.fields).length > 2000 ||
-      Object.entries(value.fields).some(([key, field]) => !/^[a-z0-9-]{1,100}$/.test(key) ||
+      Object.entries(value.fields).some(([key, field]) => !/^[a-z0-9_-]{1,100}$/.test(key) ||
         !(typeof field === "boolean" || (typeof field === "number" && Number.isFinite(field)) || (typeof field === "string" && field.length <= 2000))) ||
       !Array.isArray(value.shieldLayers) || value.shieldLayers.length > 16 ||
       !Array.isArray(value.explosions) || value.explosions.length > 8 ||

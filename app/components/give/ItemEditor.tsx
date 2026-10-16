@@ -213,7 +213,7 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
   }
 
   function resetAll() {
-    if (!window.confirm("Сбросить все параметры?")) return;
+    if (!window.confirm("Сбросить все параметры и историю AI-помощника?")) return;
     setQuery("");
     setAiSession(value => value + 1);
     setSnapshot(defaultGiveSnapshot());
@@ -487,7 +487,7 @@ export function ItemEditor({ adminMode = false, showAiAssistant = false, initial
         <div className="btn-row">
           <button type="button" onClick={() => copy()}>Копировать</button>
           <button className="sec" type="button" onClick={() => setSnapshot({ ...snapshot })}>Обновить</button>
-          <button className="danger" type="button" onClick={resetAll}>Сброс</button>
+          <button className="danger" type="button" onClick={resetAll}>Сбросить всё</button>
         </div>
         {longCommand ? <div className="warn">Команда длиннее 256 символов - используй командный блок: <code>/give @s command_block</code>{autoTarget ? ". Цель в команде автоматически заменена с @s на @p, чтобы командный блок выдал предмет ближайшему игроку." : ""}</div> : null}
       </section>

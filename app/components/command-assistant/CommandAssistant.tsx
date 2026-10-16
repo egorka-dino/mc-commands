@@ -29,9 +29,7 @@ const labels = {
 export function CommandAssistant<T>({ mode, snapshot, onApply, normalize, adminMode = false }: Props<T>) {
   const label = labels[mode];
   const inputId = useId();
-  const ai = useCommandAssistant({ mode, snapshot, onApply, normalize,
-    confirmRestart: `Собрать нового ${label.object} по этому описанию? Текущие настройки и история будут заменены после успешного ответа.`,
-  });
+  const ai = useCommandAssistant({ mode, snapshot, onApply, normalize });
   const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
   const [voiceStatus, setVoiceStatus] = useState<"idle" | "listening" | "stopping">("idle");
   const [voiceMessage, setVoiceMessage] = useState("");
@@ -85,10 +83,10 @@ export function CommandAssistant<T>({ mode, snapshot, onApply, normalize, adminM
     </> : null}
     <div className="btn-row ai-actions">
       <button type="button" onClick={() => ai.generate()} disabled={ai.busy || voiceBusy || ai.prompt.trim().length < 3}>{ai.busy ? "Думаю..." : "Применить к текущему"}</button>
-      <button className="sec" type="button" onClick={() => ai.generate(true)} disabled={ai.busy || voiceBusy || ai.prompt.trim().length < 3}>Собрать заново</button>
       <button className="sec" type="button" disabled={voiceBusy || !ai.canUndo} onClick={ai.undoLast}>Отменить AI-правку</button>
     </div>
-    <p className="hint">Каждый запрос дорабатывает текущего {label.object}, включая ручные правки. "Собрать заново" заменяет его по новому описанию. {label.extra}</p>
+    <p className="hint">Каждый запрос дорабатывает текущего {label.object}, включая ручные правки. {label.extra}</p>
+    {!adminMode ? <p className="hint">Чтобы начать с чистого состояния, используй "Сбросить всё" внизу редактора — история тоже очистится.</p> : null}
     <p className="hint">История хранится до перезагрузки страницы; помощник учитывает последние 6 запросов и текущее состояние.</p>
     {adminMode ? <p className="hint">Метаданные шаблона — ID, название, категорию и описание — сохрани отдельно.</p> : null}
     {ai.changedAfterAnswer ? <p className="hint">После ручных изменений отмена AI-правки недоступна, чтобы сохранить твою работу.</p> : null}

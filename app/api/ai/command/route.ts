@@ -156,7 +156,7 @@ export async function POST(request: Request) {
           raw.mobOrder.some(mob => !mob || !validMobs.has(mob.mobType)) ||
           !raw.fields || typeof raw.fields !== "object" || Array.isArray(raw.fields) ||
           Object.keys(raw.fields).length > 10000 ||
-          Object.entries(raw.fields).some(([key, value]) => !/^[0-5]-[a-z0-9-]+$/.test(key) ||
+          Object.entries(raw.fields).some(([key, value]) => !/^[0-5]-[a-z0-9_-]+$/.test(key) ||
             !(value === null || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value)) || (typeof value === "string" && value.length <= 1000)))) {
         return Response.json({ error: "Некорректное состояние моба." }, { status: 400 });
       }
