@@ -24,8 +24,8 @@ export function useCommandAssistant<T>({ mode, snapshot, onApply, normalize }: O
   const changedAfterAnswer = Boolean(undo && JSON.stringify(snapshot) !== undo.afterKey);
   const canUndo = Boolean(undo && !changedAfterAnswer && !busy);
 
-  async function generate() {
-    const text = prompt.trim();
+  async function generate(description = prompt) {
+    const text = description.trim();
     if (activeRequest.current || text.length < 3) return;
     const before = latest.current.snapshot;
     const beforeKey = JSON.stringify(before);

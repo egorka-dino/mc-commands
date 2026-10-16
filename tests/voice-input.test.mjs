@@ -11,14 +11,16 @@ function setup(original = 'Зомби', limit = 1500) {
     stop() { this.stopped = true; }
     abort() { this.aborted = true; }
   }
+  const completions = [];
   const session = createVoiceSession(FakeRecognition, original, {
     text: value => observed.text = value,
     status: value => observed.status = value,
     message: value => observed.message = value,
+    complete: (text, successful) => completions.push({ text, successful }),
   }, limit);
   session.start();
   const emit = (...entries) => engine.onresult?.({ results: entries.map(([transcript, isFinal]) => ({ 0: { transcript }, isFinal })) });
-  return { session, engine, observed, emit };
+  return { session, engine, observed, emit, completions };
 }
 
 test('dictation appends once, replaces interim results, commits only final text', () => {
@@ -92,4 +94,41 @@ test('start failure returns to idle without losing text', () => {
   assert.equal(observed.status, 'idle');
   assert.equal(observed.text, 'Исходный текст');
   assert.match(observed.message, /Не удалось/);
+});
+
+
+test('apply can await final recognition, completing exactly once with the final text', () => {
+  const { session, engine, emit, completions } = setup();
+  emit(['с мечом', false]);
+  session.stop();
+  assert.deepEqual(completions, []);
+  emit(['с алмазным мечом', true]);
+  const lateEnd = engine.onend;
+  engine.onend();
+  lateEnd();
+  assert.deepEqual(completions, [{ text: 'Зомби с алмазным мечом', successful: true }]);
+});
+
+test('cancel, silence and errors never authorize automatic application', () => {
+  for (const ending of ['cancel', 'silence', 'error']) {
+    const { session, engine, emit, completions } = setup();
+    if (ending !== 'silence') emit(['с мечом', true]);
+    session.stop();
+    if (ending === 'cancel') session.cancel();
+    else if (ending === 'error') engine.onerror({ error: 'network' });
+    else engine.onend();
+    assert.equal(completions.length, 1);
+    assert.equal(completions[0].successful, false);
+  }
+});
+
+test('recognition timeout preserves final text without authorizing application', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { session, engine, emit, completions, observed } = setup();
+  emit(['с мечом', true], ['и щитом', false]);
+  session.stop();
+  t.mock.timers.tick(5000);
+  assert.deepEqual(completions, [{ text: 'Зомби с мечом', successful: false }]);
+  assert.equal(observed.status, 'idle');
+  assert.equal(engine.aborted, true);
 });

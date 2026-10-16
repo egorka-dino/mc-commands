@@ -197,7 +197,6 @@ function makeRandomSnapshot() {
 
 export function MobEditor({ adminMode = false, showAiAssistant = false, initialSnapshot, templates, onSnapshotChange }: Props) {
   const [snapshot, setSnapshot] = useState(() => normalizeSnapshot(initialSnapshot || toSnapshot(["zombie"])));
-  const [show3d, setShow3d] = useState(false);
   const [coords, setCoords] = useState("~ ~ ~");
   const [presetId, setPresetId] = useState("");
   const [aiSession, setAiSession] = useState(0);
@@ -287,6 +286,17 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
 
   return (
     <div className="summon-app">
+      <div className={`summon-workspace${shouldShowAiAssistant ? " has-assistant" : ""}`}>
+      {shouldShowAiAssistant ? <CommandAssistant key={aiSession} mode="summon" snapshot={snapshot} normalize={normalizeSnapshot} adminMode={adminMode} onApply={next => {
+        updateSnapshot(next);
+        setPresetId("");
+      }} /> : null}
+        <section className="panel preview-panel summon-live-preview">
+          <h2>3D-предпросмотр</h2>
+          <EntityPreview snapshot={snapshot} />
+        </section>
+      </div>
+
       {!adminMode ? (
         <section className="panel">
           <h2>Координаты</h2>
@@ -316,10 +326,7 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
         </section>
       ) : null}
 
-      {shouldShowAiAssistant ? <CommandAssistant key={aiSession} mode="summon" snapshot={snapshot} normalize={normalizeSnapshot} adminMode={adminMode} onApply={next => {
-        updateSnapshot(next);
-        setPresetId("");
-      }} /> : null}
+
 
       {!adminMode ? (
         <section className="panel">
@@ -341,11 +348,7 @@ export function MobEditor({ adminMode = false, showAiAssistant = false, initialS
         <div className="passenger-controls"><button className="info" type="button" onClick={() => updateSnapshot({ mobOrder: [...snapshot.mobOrder, { mobType: "zombie" }], fields: { ...snapshot.fields, [fieldKey(snapshot.mobOrder.length, "mob")]: "zombie", [fieldKey(snapshot.mobOrder.length, "persist")]: true, [fieldKey(snapshot.mobOrder.length, "name-visible")]: true } })}>+ Добавить пассажира</button><span className="hint">Первый пассажир сидит на основном, второй на первом, и т.д.</span></div>
       </section>
 
-      <section className="panel preview-panel"><h2>Предпросмотр</h2>
-        <div className="entity-preview-controls"><button type="button" className="small" onClick={() => setShow3d(value => !value)}>{show3d ? "Скрыть 3D" : "Показать 3D"}</button>
-</div>
-        {show3d ? <EntityPreview snapshot={snapshot} /> : <p className="hint">3D для всех сущностей каталога, снаряжения и пассажиров. Загружается по кнопке.</p>}
-        <Preview snapshot={snapshot} /></section>
+      <section className="panel preview-panel"><h2>Состав и характеристики</h2><Preview snapshot={snapshot} /></section>
 
       {!adminMode ? (
         <section className="panel output-panel">

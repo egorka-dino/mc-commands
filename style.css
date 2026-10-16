@@ -1214,7 +1214,7 @@
     }
   }
 
-/* On-demand Minecraft model viewer; text preview remains available below it. */
+/* Minecraft model viewer; text preview remains available below the editor. */
 .entity-preview { margin: 14px 0 22px; }
 .entity-preview-canvas { width: 100%; height: 380px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: radial-gradient(ellipse at center, #27374a, #111923); }
 .entity-preview-canvas canvas { display: block; touch-action: none; }
@@ -1247,3 +1247,17 @@ dialog.entity-preview:modal { position: fixed; inset: 0; margin: auto; width: ca
 
   .voice-actions { margin-top: 10px; }
   .voice-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* Keep the prompt and its live result together, before the detailed editor. */
+.summon-workspace { display: grid; gap: 20px; align-items: start; margin-bottom: 20px; }
+.summon-workspace.has-assistant { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.summon-workspace > .panel { min-width: 0; margin-bottom: 0; }
+.summon-live-preview { position: sticky; top: 76px; }
+.summon-live-preview .entity-preview { margin-bottom: 0; }
+.ai-history-details { margin: 12px 0; }
+.ai-help { margin-top: 12px; }
+@media (max-width: 760px) {
+  .summon-workspace.has-assistant { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .summon-live-preview { position: static; }
+  .summon-live-preview .entity-preview-canvas { height: 260px; }
+}

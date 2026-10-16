@@ -34,19 +34,21 @@ export function createVoiceSession(Constructor: RecognitionConstructor, original
   text(value: string): void;
   status(value: "listening" | "stopping" | "idle"): void;
   message(value: string): void;
+  complete?(text: string, successful: boolean): void;
 }, limit = 1500) {
   const recognition = new Constructor();
   let active = true;
   let finalText = original;
   let heard = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const finish = () => {
+  const finish = (successful = false) => {
     if (!active) return;
     active = false;
     clearTimeout(timer);
     recognition.onresult = recognition.onerror = recognition.onend = null;
     callbacks.text(finalText);
     callbacks.status("idle");
+    callbacks.complete?.(finalText, successful);
   };
   const stop = () => {
     if (!active || timer) return;
@@ -84,7 +86,7 @@ export function createVoiceSession(Constructor: RecognitionConstructor, original
   recognition.onend = () => {
     if (!active) return;
     if (!heard) callbacks.message(messages["no-speech"]);
-    finish();
+    finish(heard);
   };
   return {
     start() {
