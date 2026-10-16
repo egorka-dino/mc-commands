@@ -13,3 +13,5 @@ Preview: https://mc-commands-8ripah0yh-egorka-dinos-projects.vercel.app/summon
 Сравнение с запущенным Minecraft не выполнялось. До исправления в браузере щит красный, без различимых нижних слоёв; после исправления видны треугольники и градиент, Mojang различим поверх них.
 
 Автоматические проверки preview также обнаружили устаревший транспортный gzip от предыдущего экспорта (в нём были старые shulker defaults и alpha предметов). Для итогового preview пакет заново создан `bundle-catalog.py` из текущего каталога. При обычном Git deployment этот транспорт не используется.
+
+Итоговый Vercel preview READY (`dpl_9EDqEvPbFEuU5pm93hZ6wfusxfB9`): проверены исходные пять слоёв на щите и на флаге, незеритовая броня с rib/redstone, rib/gold и silence/gold и меч. 3D-ресурсы загружаются без HTTP-ошибок. Контрольные снимки: [щит после исправления](banner-alpha-fixed.png), [щит до исправления](banner-alpha-before.png).
