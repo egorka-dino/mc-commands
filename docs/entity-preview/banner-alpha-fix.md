@@ -8,6 +8,8 @@
 
 Проверено локально: 17 тестов `npm run test:entity-preview`, `npx tsc --noEmit`, `npm run build -- --webpack` и `git diff --check`. Webpack использован локально из-за node_modules, подключённых из основного checkout в изолированную рабочую копию. Обычную production-сборку дополнительно выполняет Vercel preview.
 
-Preview: https://mc-commands-35g8o2mtq-egorka-dinos-projects.vercel.app/summon
+Preview: https://mc-commands-8ripah0yh-egorka-dinos-projects.vercel.app/summon
 
 Сравнение с запущенным Minecraft не выполнялось. До исправления в браузере щит красный, без различимых нижних слоёв; после исправления видны треугольники и градиент, Mojang различим поверх них.
+
+Автоматические проверки preview также обнаружили устаревший транспортный gzip от предыдущего экспорта (в нём были старые shulker defaults и alpha предметов). Для итогового preview пакет заново создан `bundle-catalog.py` из текущего каталога. При обычном Git deployment этот транспорт не используется.
