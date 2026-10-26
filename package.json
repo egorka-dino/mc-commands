@@ -9,12 +9,14 @@
     "test:command-ai": "tsc app/api/ai/command/route.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2020 --skipLibCheck --esModuleInterop && node --test tests/command-ai.test.mjs",
     "test:voice-input": "tsc app/components/command-assistant/voice-input.ts --rootDir app --outDir .test-build --module commonjs --target es2020 --skipLibCheck && node --test tests/voice-input.test.mjs",
     "test:entity-preview": "tsc app/components/summon/preview-material.ts app/components/summon/data.ts app/components/summon/engine.ts app/components/summon/preview-scene.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2020 --skipLibCheck --esModuleInterop && node --test tests/entity-preview.test.mjs",
-    "prebuild": "node tools/entity-export/restore-bundle.mjs && npm run test:entity-preview"
+    "prebuild": "node tools/entity-export/restore-bundle.mjs && npm run test:entity-preview",
+    "test:auth": "tsc app/server/auth-policy.ts --outDir .test-build/server --module commonjs --target es2022 --skipLibCheck && node --test tests/auth-policy.test.mjs",
+    "test:auth-session": "node tests/auth-session.test.mjs"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.3.5",
     "@neondatabase/serverless": "^1.1.0",
     "next": "16.2.6",
+    "next-auth": "^5.0.0-beta.32",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "three": "^0.180.0"

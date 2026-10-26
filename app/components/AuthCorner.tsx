@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AuthActionButton } from "./AuthActionButton";
 
 type Props = {
   currentPath: string;
@@ -18,7 +19,7 @@ type AuthStatus = {
 
 export function AuthCorner({ currentPath }: Props) {
   const [status, setStatus] = useState<AuthStatus | null | undefined>(undefined);
-  const callbackUrl = encodeURIComponent(currentPath);
+  const returnPath = /^\/(?:admin|sign-in|sign-up|sign-out)(?:\/|$)/.test(currentPath) ? "/" : currentPath;
 
   useEffect(() => {
     let active = true;
@@ -42,7 +43,7 @@ export function AuthCorner({ currentPath }: Props) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [currentPath]);
 
   if (status === undefined) {
     return <div className="auth-corner auth-corner-loading" aria-busy="true" />;
@@ -60,9 +61,7 @@ export function AuthCorner({ currentPath }: Props) {
             Админка
           </a>
         ) : null}
-        <a className="auth-link" href={`/sign-out?redirect_url=${callbackUrl}`}>
-          Выйти
-        </a>
+        <AuthActionButton action="sign-out" redirectUrl={returnPath} />
       </div>
     );
   }
@@ -71,7 +70,7 @@ export function AuthCorner({ currentPath }: Props) {
     return (
       <div className="auth-corner">
         <span className="auth-text">
-          Clerk-вход почти готов: осталось заполнить ключи проекта.
+          Вход через Google пока недоступен.
         </span>
       </div>
     );
@@ -79,9 +78,7 @@ export function AuthCorner({ currentPath }: Props) {
 
   return (
     <div className="auth-corner">
-      <a className="auth-button" href={`/sign-in?redirect_url=${callbackUrl}`}>
-        Войти в портал
-      </a>
+      <AuthActionButton action="sign-in" redirectUrl={returnPath} />
     </div>
   );
 }

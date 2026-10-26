@@ -1,47 +1,26 @@
-import { ClerkProvider, SignIn } from "@clerk/nextjs";
-import { clerkLocalization } from "../../components/clerk-localization";
-import { isClerkConfigured } from "../../server/clerk-config";
+import { redirect } from "next/navigation";
+import { AuthActionButton } from "../../components/AuthActionButton";
+import { getSafeRedirectUrl, isGoogleAuthConfigured } from "../../server/auth-policy";
+import { getAuthUser } from "../../server/auth";
 
 export const dynamic = "force-dynamic";
-
-type Props = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-};
-
-function getSafeRedirectUrl(value: string | string[] | undefined) {
-  const rawValue = Array.isArray(value) ? value[0] : value;
-
-  if (!rawValue?.startsWith("/") || rawValue.startsWith("//")) {
-    return "/";
-  }
-
-  return rawValue;
-}
+type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function SignInPage({ searchParams }: Props) {
   const params = await searchParams;
   const redirectUrl = getSafeRedirectUrl(params?.redirect_url);
-  const completeUrl = `/auth/complete?redirect_url=${encodeURIComponent(redirectUrl)}`;
-
-  if (!isClerkConfigured()) {
-    return (
-      <main className="auth-page">
-        Clerk ещё не настроен. Добавьте ключи Clerk в переменные окружения.
-      </main>
-    );
-  }
+  if (!isGoogleAuthConfigured()) return <main className="auth-page">Вход через Google ещё не настроен.</main>;
+  if (await getAuthUser()) redirect(redirectUrl === "/sign-in" ? "/" : redirectUrl);
 
   return (
-    <ClerkProvider localization={clerkLocalization}>
-      <main className="auth-page">
-        <SignIn
-          routing="path"
-          path="/sign-in"
-          fallbackRedirectUrl={completeUrl}
-          forceRedirectUrl={completeUrl}
-          oauthFlow="redirect"
-        />
-      </main>
-    </ClerkProvider>
+    <main className="auth-page">
+      <section className="admin-panel">
+        <h1>Вход через Google</h1>
+        {params?.error ? <p role="alert">Не удалось войти. Попробуй ещё раз и разреши вход в Google.</p>
+          : <p>Открываем Google для входа...</p>}
+        <AuthActionButton action="sign-in" redirectUrl={redirectUrl} autoStart={!params?.error} />
+        <p><a href={redirectUrl}>Вернуться на сайт</a></p>
+      </section>
+    </main>
   );
 }

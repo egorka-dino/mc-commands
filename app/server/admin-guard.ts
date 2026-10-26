@@ -1,17 +1,16 @@
-import { currentUser } from "@clerk/nextjs/server";
-import { isAdminFromMetadata, isClerkConfigured } from "./auth";
+import { getAuthUser, isGoogleAuthConfigured } from "./auth";
 
 export async function requireAdminResponse() {
-  if (!isClerkConfigured()) {
-    return Response.json({ ok: false, error: "Clerk не настроен" }, { status: 503 });
+  if (!isGoogleAuthConfigured()) {
+    return Response.json({ ok: false, error: "Google-вход не настроен" }, { status: 503 });
   }
 
-  const user = await currentUser();
+  const user = await getAuthUser();
   if (!user) {
     return Response.json({ ok: false, error: "Войдите в админку" }, { status: 401 });
   }
 
-  if (!isAdminFromMetadata(user)) {
+  if (!user.isAdmin) {
     return Response.json({ ok: false, error: "Доступно только администратору" }, { status: 403 });
   }
 

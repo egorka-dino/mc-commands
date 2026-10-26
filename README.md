@@ -39,12 +39,12 @@
 - `/give` — React-редактор команды `/give`
 - `/api/health` проверяет, что backend-слой Next.js отвечает
 - `/api/db/health` проверяет подключение к Neon Postgres
-- `/sign-in` и `/sign-up` отдают готовые страницы Clerk
+- `/sign-in` и `/sign-up` используют единый вход через Google
 - `/admin` показывает админку для пользователей с ролью `admin`: проверки и редактор общих шаблонов мобов
 - `/api/summon/templates` отдаёт общие шаблоны для `/summon`
 - `/api/admin/summon/templates` позволяет администратору создавать, изменять и удалять DB-правки шаблонов
-- `/api/auth/google` перенаправляет на Clerk sign-in для старых ссылок
-- `/api/auth/status` показывает готовность Clerk и текущего пользователя
+- `/api/auth/google` перенаправляет на страницу Google-входа для старых ссылок
+- `/api/auth/status` показывает готовность Google OAuth и текущего пользователя
 
 Общие стили лежат в `style.css`, а данные и генерация команд разнесены по компонентам в `app/components/summon/` и `app/components/give/`.
 
@@ -67,38 +67,13 @@ cp .env.example .env.local
 npx vercel@latest env pull .env.local
 ```
 
-### Clerk-логин
+### Google-логин
 
-Авторизация сделана через Clerk. Для локальной разработки нужны переменные:
+Прямой вход через Google OAuth и Auth.js. Настройка и перенос старых аккаунтов описаны в [технической документации](docs/developer-documentation.md#авторизация).
 
-```bash
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-```
+Нужны `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_SECRET`; администраторы задаются через `AUTH_ADMIN_EMAILS`. Google OAuth callback: `<origin>/api/auth/callback/google`. OAuth client ID/secret создаются в Google Cloud Console для Web application. В Testing добавь нужные аккаунты в Test users; это не даёт им роль администратора сайта.
 
-Google-вход включается в панели Clerk: **User & Authentication** → **Social connections** → **Google**. OAuth client ID/secret хранит Clerk, а не приложение.
-
-Администратор задаётся в Clerk через metadata пользователя. В панели Clerk открыть нужного пользователя и добавить в **Public metadata** или **Private metadata**:
-
-```json
-{
-  "role": "admin"
-}
-```
-
-Также поддерживаются варианты `{ "admin": true }` и `{ "roles": ["admin"] }`. Сайт не доверяет `unsafeMetadata`, потому что эти данные может менять сам пользователь.
-
-В Clerk нужно добавить домены приложения:
-
-```text
-http://localhost:3000
-https://mc-commands.vercel.app
-https://mc-commands.egorka.fun
-```
-
-На Vercel ключи можно добавить вручную или через Vercel Marketplace интеграцию Clerk.
+Перед переключением экспортируй связи Google/Clerk командой `node --env-file=.env.local tools/auth/export-clerk.mjs`, проверь результат и перенеси `AUTH_LEGACY_USER_IDS` и `AUTH_ADMIN_EMAILS` из `.env.auth-migration.local` в окружение приложения. Полная инструкция и ограничения — в документации выше.
 
 ## Как выложить на Vercel
 

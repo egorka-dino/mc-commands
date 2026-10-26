@@ -1,13 +1,13 @@
-import { getAuthUser, isClerkConfigured } from "../../../server/auth";
+import { getAuthUser, isGoogleAuthConfigured } from "../../../server/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const configured = isClerkConfigured();
+  const configured = isGoogleAuthConfigured();
   const user = await getAuthUser();
 
   return Response.json({
-    provider: "clerk",
+    provider: "google",
     configured,
     authenticated: Boolean(user),
     user: user
@@ -19,5 +19,5 @@ export async function GET() {
           isAdmin: user.isAdmin,
         }
       : null,
-  });
+  }, { headers: { "Cache-Control": "private, no-store", "Vary": "Cookie" } });
 }

@@ -6,7 +6,7 @@
   - Используется Next.js App Router, TypeScript, React, server components, client components и route handlers для API.
   - `/summon` использует общий React-редактор, который используется и на публичной странице, и в админке шаблонов.
   - `/give` использует React-редактор с сохранением старого формата избранного в `localStorage`.
-  - Авторизация подключена через Clerk (`@clerk/nextjs`).
+  - Авторизация подключена напрямую через Google OAuth и Auth.js (`next-auth`).
   - База данных подключается через Neon serverless (`@neondatabase/serverless`).
   - Внешние зависимости уже есть; новые добавлять только при явной пользе и без утяжеления простых генераторов.
 
@@ -16,14 +16,14 @@
   - `app/components/summon/` — общий React-редактор `/summon`, данные мобов/предметов и генерация команды.
   - `app/give/page.tsx` — React-страница `/give`, использует редактор предметов.
   - `app/components/give/` — React-редактор `/give`, данные предметов и генерация команды.
-  - `app/layout.tsx` и `app/globals.css` — общий React layout и стили для Next.js/Clerk-страниц.
-  - `app/sign-in/`, `app/sign-up/`, `app/sign-out/` — страницы авторизации Clerk.
+  - `app/layout.tsx` и `app/globals.css` — общий React layout и стили для Next.js/auth-страниц.
+  - `app/sign-in/`, `app/sign-up/`, `app/sign-out/` — страницы авторизации Google.
   - `app/api/health/route.ts` — healthcheck Next.js runtime.
   - `app/api/db/health/route.ts` — healthcheck Neon Postgres.
-  - `app/api/auth/status/route.ts` — статус настройки Clerk и текущего пользователя.
-  - `app/api/auth/google/route.ts` — совместимый редирект старого Google-входа на Clerk sign-in.
+  - `app/api/auth/status/route.ts` — статус настройки Google OAuth и текущего пользователя.
+  - `app/api/auth/google/route.ts` — совместимый редирект на страницу Google-входа.
   - `app/server/db.ts` — Neon client и проверка подключения.
-  - `proxy.ts` — Clerk middleware; пропускает запросы, если ключи Clerk не настроены.
+  - `app/server/google-auth.ts` — Auth.js OAuth и сессии; `app/server/auth.ts` — пользователь и серверные права.
   - `style.css` — общий CSS для публичных React-страниц и редакторов.
   - `next.config.ts`, `tsconfig.json`, `package.json`, `vercel.json` — конфигурация Next.js, TypeScript, npm и Vercel.
 
@@ -35,7 +35,7 @@
   - Для auth/db использовать `.env.local`; пример переменных хранится в `.env.example`.
   - Локальные переменные из Vercel можно подтянуть командой `npx vercel@latest env pull .env.local`.
   - Если изменения заметно затрагивают пользовательский интерфейс, сразу делать Vercel preview deployment (`npx vercel deploy --yes`) и проверять preview URL, даже если локальная проверка проходит.
-  - Если проверка функциональности зависит от Clerk/Neon или локально auth/db мешают нормальной валидации, сразу делать Vercel preview deployment (`npx vercel deploy --yes`) и проверять preview URL.
+  - Если проверка функциональности зависит от Google OAuth/Neon или локально auth/db мешают нормальной валидации, сразу делать Vercel preview deployment (`npx vercel deploy --yes`) и проверять preview URL.
 
   ## Ключевые факты
   - Формат предметов: components:{enchantments:{id:lvl}} (без levels, было в 1.20.5)

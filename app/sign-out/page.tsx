@@ -1,26 +1,11 @@
-"use client";
+import { redirect } from "next/navigation";
+import { getSafeRedirectUrl } from "../server/auth-policy";
 
-import { ClerkProvider, useClerk } from "@clerk/nextjs";
-import { useEffect } from "react";
-import { clerkLocalization } from "../components/clerk-localization";
-
-function SignOutAction() {
-  const { signOut } = useClerk();
-
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const redirectUrl = searchParams.get("redirect_url") || "/";
-
-    void signOut({ redirectUrl });
-  }, [signOut]);
-
-  return <main className="auth-page">Выходим...</main>;
-}
-
-export default function SignOutPage() {
-  return (
-    <ClerkProvider localization={clerkLocalization}>
-      <SignOutAction />
-    </ClerkProvider>
-  );
+// Compatibility for old links. Only the CSRF-protected POST button ends a session.
+export default async function SignOutPage({ searchParams }: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const path = getSafeRedirectUrl(params?.redirect_url);
+  redirect(path.startsWith("/sign-out") ? "/" : path);
 }

@@ -1,6 +1,5 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { getDatabaseUrlStatus } from "../../../../server/db";
-import { isAdminFromMetadata, isClerkConfigured } from "../../../../server/auth";
+import { getAuthUser, isGoogleAuthConfigured } from "../../../../server/auth";
 import {
   listExarotonServerPublications,
   setExarotonServerPublished,
@@ -10,16 +9,16 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 async function requireAdmin() {
-  if (!isClerkConfigured()) {
-    return Response.json({ ok: false, error: "Clerk is not configured" }, { status: 503 });
+  if (!isGoogleAuthConfigured()) {
+    return Response.json({ ok: false, error: "Google auth is not configured" }, { status: 503 });
   }
 
-  const user = await currentUser();
+  const user = await getAuthUser();
   if (!user) {
     return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!isAdminFromMetadata(user)) {
+  if (!user.isAdmin) {
     return Response.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 

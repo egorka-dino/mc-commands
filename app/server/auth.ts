@@ -1,9 +1,7 @@
-import { currentUser } from "@clerk/nextjs/server";
-import { isClerkConfigured } from "./clerk-config";
+import { auth } from "./google-auth";
+import { getAppUserId, isAdminEmail, isGoogleAuthConfigured } from "./auth-policy";
 
-export { isClerkConfigured };
-
-type Metadata = Record<string, unknown>;
+export { isGoogleAuthConfigured } from "./auth-policy";
 
 export type AuthUser = {
   id: string;
@@ -13,55 +11,16 @@ export type AuthUser = {
   isAdmin: boolean;
 } | null;
 
-function asMetadata(value: unknown): Metadata {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return value as Metadata;
-}
-
-function metadataHasAdminRole(metadata: Metadata) {
-  const role = metadata.role;
-  const roles = metadata.roles;
-
-  return (
-    role === "admin" ||
-    metadata.admin === true ||
-    (Array.isArray(roles) && roles.includes("admin"))
-  );
-}
-
-export function isAdminFromMetadata(user: {
-  publicMetadata?: unknown;
-  privateMetadata?: unknown;
-}) {
-  return (
-    metadataHasAdminRole(asMetadata(user.publicMetadata)) ||
-    metadataHasAdminRole(asMetadata(user.privateMetadata))
-  );
-}
-
 export async function getAuthUser(): Promise<AuthUser> {
-  if (!isClerkConfigured()) {
-    return null;
-  }
-
-  const user = await currentUser();
-
-  if (!user) {
-    return null;
-  }
-
+  if (!isGoogleAuthConfigured()) return null;
+  const session = await auth();
+  const user = session?.user;
+  if (!user?.id || !user.email) return null;
   return {
-    id: user.id,
-    name:
-      user.fullName ||
-      user.primaryEmailAddress?.emailAddress ||
-      user.username ||
-      "Игрок",
-    email: user.primaryEmailAddress?.emailAddress || null,
-    imageUrl: user.imageUrl || null,
-    isAdmin: isAdminFromMetadata(user),
+    id: getAppUserId(user.id),
+    name: user.name || user.email || "Игрок",
+    email: user.email,
+    imageUrl: user.image || null,
+    isAdmin: isAdminEmail(user.email),
   };
 }
