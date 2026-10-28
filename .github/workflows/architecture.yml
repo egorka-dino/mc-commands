@@ -2,7 +2,7 @@ name: Architecture
 
 on:
   push:
-    branches: [main, codex/c4-architecture-pages]
+    branches: [main]
     paths:
       - 'docs/architecture/**'
       - 'tools/architecture/**'
@@ -45,7 +45,7 @@ jobs:
           path: .architecture-site
 
   deploy:
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/c4-architecture-pages')
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
