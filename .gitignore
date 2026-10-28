@@ -9,6 +9,7 @@ out/
 .vercel
 .playwright-mcp/
 .test-build/
+.architecture-site/
 __pycache__/
 
 # Optional compressed transport for Vercel API previews

@@ -1,0 +1,60 @@
+name: Architecture
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/architecture/**'
+      - 'tools/architecture/**'
+      - '.github/workflows/architecture.yml'
+  pull_request:
+    paths:
+      - 'docs/architecture/**'
+      - 'tools/architecture/**'
+      - '.github/workflows/architecture.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: architecture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Validate DSL and export interactive site
+        run: bash tools/architecture/build.sh
+      - name: Upload reviewable site
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-site
+          path: .architecture-site
+          include-hidden-files: true
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .architecture-site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy architecture to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

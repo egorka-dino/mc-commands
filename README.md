@@ -6,6 +6,7 @@
 
 - [Пользовательский функционал](docs/user-functionality.md)
 - [Техническая документация для разработчиков](docs/developer-documentation.md)
+- [Кликабельная C4-архитектура](https://egorka-dino.github.io/mc-commands/) — [DSL и инструкция](docs/architecture/README.md)
 
 ## Возможности
 
