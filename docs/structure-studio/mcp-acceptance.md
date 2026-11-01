@@ -53,3 +53,8 @@ Callback финального preview: `https://mc-commands-1lwnp5516-egorka-din
 После явного разрешения выполнены fast-forward merge в main и push origin до d349064; Vercel Git integration автоматически выпустил production `dpl_2xefAtQNkGbVrmoAX7BazGimkr2w` (issgy0pbf), READY. Это не отдельный ручной production deploy. Проверены новый раздел на `https://mc-commands.egorka.fun/structures` и инструкция `/structures/mcp` (200). Старый `mc-commands.vercel.app/structures/mcp` вернул 404 и не входит в aliases этого deployment. Поэтому в текущей задаче пример STRUCTURE_API_URL исправлен на фактически рабочий custom domain; OAuth callback, DNS и aliases этим исправлением не менялись. Исправление проходит TypeScript/build/preview QA и публикацию через main. Пользователь затем явно отменил Telegram-объявление; никаких сообщений в Telegram в этой задаче не отправлено.
 
 Исправление только адреса в инструкции: npx tsc --noEmit и production build (включая 17 prebuild entity tests) прошли заново. Логика API/stdio не менялась, MCP-регрессии не выдаются за новый запуск. Preview `https://mc-commands-2giu4bab2-egorka-dinos-projects.vercel.app/structures/mcp`, `dpl_3WBDaiPS4bxSnXymhNRPkkS72wfH`, READY; desktop/mobile проверяют исправленный origin и отсутствие overflow. OAuth на этом дополнительном preview не проверялся и callback для него не добавлялся.
+
+
+## Дополнение batch
+
+Следующая отдельная итерация реализована в codex/structure-batch-instances от 76c2c4d. Исторические 52 теста и живая приёмка трёх инструментов выше не являются приёмкой нового batch. Новые результаты и оставшееся согласие: [batch-acceptance.md](batch-acceptance.md); точный контракт: [batch-contract.md](batch-contract.md). Старый QA-проект revision 3 оставлен без изменений.

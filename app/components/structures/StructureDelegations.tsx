@@ -2,8 +2,8 @@
 import { useState } from "react";
 
 type Grant={id:string;projectId:string;name:string;scopes:string[];expiresAt:string;revokedAt:string|null};
-const scopes=["get_project","update_instance","validate_structure"];
-const labels:Record<string,string>={get_project:"Читать проект",update_instance:"Менять комнаты",validate_structure:"Проверять структуру"};
+const scopes=["get_project","update_instance","validate_structure","batch_update_instances"];
+const labels:Record<string,string>={get_project:"Читать проект",update_instance:"Менять комнаты",validate_structure:"Проверять структуру",batch_update_instances:"Менять несколько комнат одним пакетом"};
 export function StructureDelegations({projectId,enabled,signedIn}:{projectId:string;enabled:boolean;signedIn:boolean}) {
   const [grants,setGrants]=useState<Grant[]>([]),[loaded,setLoaded]=useState(false),[busy,setBusy]=useState(false);
   const [name,setName]=useState("Локальный MCP"),[hours,setHours]=useState(24),[selected,setSelected]=useState(["get_project","validate_structure"]);

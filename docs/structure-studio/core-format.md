@@ -35,3 +35,8 @@ Stone Room использует `width`, `length`, `height`, `wallThickness: 1`,
 ## Адаптер Sponge v3 (этап 5)
 
 Формат 1 и генератор не меняются. Серверный `exportStructureSchematic(unknown)` валидирует проект, ограничивает материалы семью состояниями редактора для Java 1.21.5/DataVersion 4325, отклоняет конфликты и передаёт сгенерированные ячейки в `encodeSchematic`. Последний — внутренний адаптер, не HTTP-контракт для клиентских ячеек. Gzip NBT: пустой root → Schematic, Version=3, Blocks.Palette и VarInt Blocks.Data. Размеры max−min+1, Offset=min, WorldEdit Origin=[0,0,0]; индексы (x−minX)+(z−minZ)*Width+(y−minY)*Width*Length. Explicit air очищает мир, void и отсутствующие ячейки bounding box кодируются structure_void; нужен обычный WorldEdit `//paste` без -a/-v. Помимо бюджета ядра ограничен плотный bounding box (250000 ячеек/65535 по оси). Пустой проект сохранять можно, экспортировать нельзя. Entities, block entity NBT и биомы не экспортируются; существование произвольных core BlockState вне семи материалов этим этапом не обещается.
+
+
+## Batch существующих экземпляров
+
+Формат 1 не расширяется. [batch_update_instances](batch-contract.md) меняет параметры/позицию/поворот 1…100 существующих комнат одного проекта. Все changes разбираются прежним ядром, итоговый общий бюджет и пересечения проверяются целиком. Обмен позициями допустим; IDs и definitionId неизменны. Один успешный CAS повышает revision на 1, включая no-op значения. Writer и целевая версия экспорта остаются прежними.

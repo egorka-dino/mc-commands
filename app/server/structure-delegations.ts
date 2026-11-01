@@ -21,7 +21,7 @@ export async function issueStructureDelegation(userId:string, input:unknown) {
   try { body = strictObject(input,["projectId","name","scopes","hours"]); }
   catch { throw new StructureProjectError("Некорректное делегирование.",400); }
   const {projectId,name,scopes,hours}=body;
-  if (typeof projectId!=="string" || typeof name!=="string" || !name.trim() || name.length>80 || /[\x00-\x1f\x7f]/.test(name) || !Array.isArray(scopes) || !scopes.length || scopes.length>3 || new Set(scopes).size!==scopes.length || scopes.some(scope=>!STRUCTURE_TOOLS.includes(scope)) || typeof hours!=="number" || !Number.isInteger(hours) || hours<1 || hours>168) throw new StructureProjectError("Некорректное делегирование.",400);
+  if (typeof projectId!=="string" || typeof name!=="string" || !name.trim() || name.length>80 || /[\x00-\x1f\x7f]/.test(name) || !Array.isArray(scopes) || !scopes.length || scopes.length>STRUCTURE_TOOLS.length || new Set(scopes).size!==scopes.length || scopes.some(scope=>!STRUCTURE_TOOLS.includes(scope)) || typeof hours!=="number" || !Number.isInteger(hours) || hours<1 || hours>168) throw new StructureProjectError("Некорректное делегирование.",400);
   await getStructureProject(userId,projectId);
   await ensureTable();
   const secret=`ss1_${randomBytes(32).toString("base64url")}`, id=randomUUID();

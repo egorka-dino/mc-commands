@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 const require=createRequire(import.meta.url);
 const {toolSchemas,outputSchemas,parseToolArguments,STRUCTURE_TOOLS}=require('./.build/structure-core/operations.js');
 
-const descriptions={get_project:'Прочитать серверную версию своего проекта.',update_instance:'Изменить параметры, позицию или поворот существующей комнаты с expectedRevision. При сетевой ошибке сначала перечитать проект.',validate_structure:'Проверить снимок структуры без сохранения.'};
+const descriptions={batch_update_instances:'Атомарно изменить 1–100 существующих комнат с одной expectedRevision. Отдельный scope. Без автоматического повтора; при неизвестном исходе перечитать проект.',get_project:'Прочитать серверную версию своего проекта.',update_instance:'Изменить параметры, позицию или поворот существующей комнаты с expectedRevision. При сетевой ошибке сначала перечитать проект.',validate_structure:'Проверить снимок структуры без сохранения.'};
 const errorMessages={INVALID_ARGUMENT:'Некорректные аргументы.',UNAUTHORIZED:'Доступ истёк, отозван или не подтверждён.',FORBIDDEN:'Операция не разрешена.',NOT_FOUND:'Проект или экземпляр не найден.',CONFLICT:'Конфликт версий. Перечитайте проект.',TOO_LARGE:'Запрос слишком большой.',UNSUPPORTED_MEDIA_TYPE:'Ожидается JSON.',UNAVAILABLE:'Сервис недоступен.',NETWORK_ERROR:'Исход запроса неизвестен. Перечитайте проект перед следующей записью.'};
 const statusCodes={400:'INVALID_ARGUMENT',401:'UNAUTHORIZED',403:'FORBIDDEN',404:'NOT_FOUND',409:'CONFLICT',413:'TOO_LARGE',415:'UNSUPPORTED_MEDIA_TYPE',503:'UNAVAILABLE'};
 function failure(code,status=0) { const result={error:{code,message:errorMessages[code],status}}; return {isError:true,content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result}; }
@@ -41,17 +41,17 @@ async function main() {
   const origin=apiOrigin(process.env.STRUCTURE_API_URL);
   const secret=await readSecret(process.env.STRUCTURE_TOKEN_FILE);
   const server=new Server({name:'structure-studio',version:'0.1.0'},{capabilities:{tools:{}}});
-  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:STRUCTURE_TOOLS.map(name=>({name,description:descriptions[name],inputSchema:toolSchemas[name],outputSchema:outputSchemas[name],annotations:{readOnlyHint:name!=='update_instance',destructiveHint:name==='update_instance',idempotentHint:name!=='update_instance',openWorldHint:false}}))}));
+  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:STRUCTURE_TOOLS.map(name=>({name,description:descriptions[name],inputSchema:toolSchemas[name],outputSchema:outputSchemas[name],annotations:{readOnlyHint:!['update_instance','batch_update_instances'].includes(name),destructiveHint:['update_instance','batch_update_instances'].includes(name),idempotentHint:!['update_instance','batch_update_instances'].includes(name),openWorldHint:false}}))}));
   server.setRequestHandler(CallToolRequestSchema,async request=>{
     const name=request.params.name;
     if (!STRUCTURE_TOOLS.includes(name)) throw new McpError(ErrorCode.InvalidParams,'Unknown tool');
     let args;
-    try {args=parseToolArguments(name,request.params.arguments);} catch {return failure('INVALID_ARGUMENT',400);}
+    try {args=parseToolArguments(name,request.params.arguments);} catch(error) {return error?.message==='TOO_LARGE'?failure('TOO_LARGE',413):failure('INVALID_ARGUMENT',400);}
     const path=`/api/structures/${encodeURIComponent(args.projectId)}`;
-    const body=name==='get_project'?undefined:name==='update_instance'?{instanceId:args.instanceId,expectedRevision:args.expectedRevision,changes:args.changes}:{document:args.document};
+    const body=name==='get_project'?undefined:name==='batch_update_instances'?{expectedRevision:args.expectedRevision,updates:args.updates}:name==='update_instance'?{instanceId:args.instanceId,expectedRevision:args.expectedRevision,changes:args.changes}:{document:args.document};
     try {
       // No retries, no redirects (including same-origin login redirects), no cookies.
-      const response=await fetch(`${origin}${path}${name==='update_instance'?'/instance':name==='validate_structure'?'/validate':''}`,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${secret}`,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,redirect:'error',signal:AbortSignal.timeout(20000)});
+      const response=await fetch(`${origin}${path}${name==='batch_update_instances'?'/instances/batch':name==='update_instance'?'/instance':name==='validate_structure'?'/validate':''}`,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${secret}`,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,redirect:'error',signal:AbortSignal.timeout(20000)});
       if (!response.ok) return failure(statusCodes[response.status]||'UNAVAILABLE',response.status);
       // Bound responses independently of Content-Length and never relay an unexpected body.
       let raw='',size=0; const decoder=new TextDecoder();
