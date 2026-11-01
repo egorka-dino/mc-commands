@@ -425,3 +425,6 @@ Browser-download файл пользователя `structure (2).schem` нез�
 
 
 WorldEdit 7.4.6 на Fabric 26.3: реальный сервер загрузил переданный пользователем browser .schem и сохранил его обратно; все 968 ячеек совпали после round trip (WorldEdit обновил DataVersion до 5023). Загрузка имени без расширения на этой версии отклоняется как Invalid value for <schematic>, полное имя с .schem принимается. Пример команды в UI и пользовательской документации уточнён. Это ещё не подтверждение вставки в мир.
+
+
+Приёмка экспорта закрыта: пользователь подтвердил обычную вставку и матрицу семи комнат с золотым заполнением на Fabric 26.3/WorldEdit 7.4.6. Независимый разбор browser-файла, настоящий OAuth и облачное сохранение, WorldEdit load/save проверены отдельно. Пределы доказательств, состав матрицы и результаты — [WorldEdit acceptance](structure-studio/worldedit-acceptance.md). Следующая задача — [MCP stage prompt](structure-studio/mcp-stage-prompt.md); MCP пока не реализован.
