@@ -197,7 +197,7 @@ export function StructureStudio() {
         {cloud && user===true && <button className="btn" disabled={exportBusy || busy || !!confirmation} onClick={() => void downloadSchematic(true)}>Скачать серверную версию</button>}
       </div>
       <p>Minecraft Java 1.21.5 · Sponge v3 · WorldEdit 7.3+. Текущую сцену можно скачать без входа и облачного сохранения, включая локальные правки.</p>
-      <p>Загрузите файл через <code>//schem load structure</code>, затем <code>//paste</code>. Воздух очищает внутренность и проёмы; промежутки между комнатами сохраняют мир. Не добавляйте <code>-a</code> (пропускает воздух) или <code>-v</code> (вставляет structure void). Начало сцены (0, 0, 0) совмещается с местом вставки; смещения комнат сохраняются.</p>
+      <p>Загрузите файл через <code>//schem load structure.schem</code>, затем <code>//paste</code>. Укажите точное имя скачанного файла вместе с расширением .schem. Воздух очищает внутренность и проёмы; промежутки между комнатами сохраняют мир. Не добавляйте <code>-a</code> (пропускает воздух) или <code>-v</code> (вставляет structure void). Начало сцены (0, 0, 0) совмещается с местом вставки; смещения комнат сохраняются.</p>
       {exportBusy && <p role="status">Готовим файл…</p>}
       {exportNotice && <p role="status">{exportNotice}</p>}
       {exportError && <div role="alert" className="structure-error"><p>{exportError}</p><button className="btn" disabled={exportBusy || busy || !!confirmation} onClick={() => void downloadSchematic(exportSource)}>Повторить скачивание</button></div>}

@@ -1,0 +1,39 @@
+# WorldEdit: реальная среда и приёмка, 1 ноября 2026
+
+Сервер предоставлен пользователем для тестирования: `GGcraftr4r.exaroton.me`, exaroton ID `Cgu4IY2gkpXSEIRT`. Сервер был выключен, запущен в рамках проверки; игрок `phantom` подключился. Лог подтвердил Minecraft 26.3, Fabric Loader 0.20.1, Java 25, WorldEdit 7.4.6+7648-00664b0. Это проверка импорта схемы Java 1.21.5 на более новом Minecraft, не испытание сервера 1.21.5. Моды/версия/доступы сервера не менялись, другие схемы не перезаписывались.
+
+## Подтверждено
+
+Пользователь выполнил загрузку и вставку стандартной комнаты и сообщил: "Все корректно вставилось после того, как я ввел полное имя." На сервере имя без `.schem` отклонялось как `Invalid value for <schematic>`; с полным именем загрузка прошла. В UI и пользовательской документации пример исправлен на `//schem load structure.schem`, добавлено требование использовать точное имя файла.
+
+Исходный browser-файл загружен как `config/worldedit/schematics/structure-qa-20261101-browser.schem`. Через настоящие команды WorldEdit консоли выполнены `schem load structure-qa-20261101-browser.schem` и `schem save structure-qa-20261101-console-roundtrip`. Серверный лог подтвердил load/save. Полученный файл скачан через exaroton API и независимо разобран: все 968 ячеек совпали с исходным browser-файлом; размер 11×8×11, Offset/Origin=[0,0,0]. WorldEdit записал DataVersion 5023 (26.3) вместо исходного 4325. Метаданные writer WorldEdit включают Date/Version/EditingPlatform; для независимого чтения временная копия reader в `/private/tmp/structure-worldedit-qa/reader.mjs` дополнена чтением TAG_Byte, TAG_Long и TAG_String. Исходный reader/код экспорта не менялся.
+
+Файл round trip: `/private/tmp/structure-worldedit-qa/reader-roundtrip.schem`, 312 байт, SHA-256 `37babd7bfad773a16d5e01c210b56873cfeda50e06180860147e1750afd4d6be`. Load/save не подменяет проверку вставки; базовая вставка подтверждена отдельно пользователем.
+
+## Расширенная матрица: ожидает ручного результата
+
+На сервер загружен `config/worldedit/schematics/structure-qa-20261101-matrix.schem`: семь комнат 11×15×8, все четыре проёма открыты. Комната n (0…6): position=(40n−120, −4, −30), rotation=(n mod 4)×90°. Материалы стен по порядку: stone_bricks, stone, cobblestone, deepslate_bricks, oak_planks, bricks, quartz_block. Пол — следующий материал этого циклического списка, потолок — через один. Все комнаты непересекающиеся. Плотный объём 241×8×29=55912, Offset=[−120,−4,−44], 9240 сгенерированных ячеек. Каждая ячейка до загрузки сверена независимым parser с ядром.
+
+Локальные файлы: `/private/tmp/structure-worldedit-qa/qa-matrix.schem` и `qa-matrix.json`. Схема: 1252 байта, SHA-256 `d954df415ae15d278cf0790629a27fb77e4a05e1b640f56ee4e3ce45f7ac1445`.
+
+На пустом тестовом участке выполнить, сохраняя одну точку вставки:
+
+```text
+//schem load structure-qa-20261101-matrix.schem
+//paste -n
+//set gold_block
+//paste
+```
+
+`//paste -n` только выделяет bounding box. После заполнения золотом обычный `//paste` без `-a`/`-v` должен очистить внутренность и проёмы, поставить материалы и сохранить золото между комнатами. Проверить прямоугольные размеры, повороты, относительные координаты и отрицательный Offset, все семь материалов, четыре проёма. Записать точку вставки и фактические наблюдения игрока. После осмотра два `//undo` последовательно отменяют вставку и контрольное заполнение. Не выполнять на чужих постройках.
+
+Команды сверены с [WorldEdit 7.4 Commands](https://worldedit.enginehub.org/en/latest/commands/): `-n` выбирает область без вставки, `-a` пропускает air, `-v` включает structure_void.
+
+Окно Java/TLauncher не доступно инструменту Computer Use; запуск `/Applications/Minecraft.app` вернул ошибку macOS, выбор TLauncher также не удался. Поэтому визуальный осмотр выполняет пользователь; агент не выдаёт серверный round trip за собственный визуальный осмотр. Команды через `execute as phantom ...` не дали подтверждённого результата; резервная копия тестового участка не появилась. До инструкции пользователю агент не заполнял участок и не выполнял paste в мир. Игрок самостоятельно изменил время и игровой режим, агент этого не делал.
+
+
+## Проверка исправленной инструкции
+
+`npx tsc --noEmit`, `npm run build` (включая 17 тестов entity preview в prebuild) и `git diff --check` прошли. Изменился только текст помощи в одном TSX-компоненте; writer/ядро/API не менялись, экспортные проверки не выдаются за повторно запущенные. Vercel preview `https://mc-commands-es9ya4hes-egorka-dinos-projects.vercel.app/structures`, deployment `dpl_G5qcxF8LG1sGrSdgsyu5QiwG5bix`, READY. Через UI подтверждён пример `//schem load structure.schem` и пояснение о полном имени. Mobile 390×844: innerWidth=390, documentWidth=375, текст доступен в панели экспорта; viewport сброшен. Это preview текстовой правки, исходный nzkv8xbbs остаётся доказательством пройденного Google OAuth с зарегистрированным callback. На новом preview новый Google callback не регистрировался и OAuth повторно не проверялся.
+
+Работа оформлена в codex/structure-worldedit-acceptance от main 01a95a1. Новые merge/push/production/Telegram не выполнялись. Базовая вставка подтверждена пользователем, расширенная матрица остаётся без ручного результата.
