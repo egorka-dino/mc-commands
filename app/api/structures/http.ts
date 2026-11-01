@@ -1,7 +1,7 @@
 import { getAuthUser } from "../../server/auth";
 import { StructureProjectError } from "../../server/structure-projects";
 export function json(body: unknown, status = 200) {
-  return Response.json(body, { status, headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
+  return Response.json(body, { status, headers: { "Cache-Control": "private, no-store", Vary: "Cookie, Authorization" } });
 }
 export async function withUser(request: Request, action: (userId: string) => Promise<Response>) {
   try {

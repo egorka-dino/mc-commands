@@ -1,0 +1,27 @@
+# MCP stdio: контракт итерации 6
+
+Решение до реализации, 1 ноября 2026. Локальный процесс → HTTPS JSON Structure API → общий сервис → Neon/getSql. Прямого доступа к БД, входящего порта, второго хранилища и realtime нет. SDK изолирован в tools/structure-mcp (собственный lockfile), в браузер/Next dependencies не входит.
+
+Официальные источники проверены: [stdio](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), [авторизация](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization), [SDK](https://github.com/modelcontextprotocol/typescript-sdk), [Codex](https://learn.chatgpt.com/docs/extend/mcp). На дату проверки v2 стабилен (пакеты server/client, спецификация 2026-07-28); поддерживаемая v1.x получает исправления минимум шесть месяцев после 2026-07-27. Выбрана зафиксированная v1.32.2 для совместимости с initialize/tools/list/tools/call. TypeScript/Python/Go и другие Tier 1 SDK совместимы на уровне протокола; Node SDK сохраняет стек проекта. Новая модель протокола v2 не нужна этой итерации.
+
+## Авторизация
+
+Stdio запускается самим MCP-клиентом. Его transport credentials и HTTPS-доступ к нашему обычному REST API — разные границы. Здесь нет удалённого MCP endpoint/OAuth discovery; токен приложения не является Google/Codex токеном. Секрет передаётся только Authorization: Bearer по HTTPS, redirects запрещены. Локальный HTTP допустим только для loopback-тестов, явным флагом.
+
+Владелец после Google-входа выдаёт одно делегирование на один существующий проект. Scopes: get_project, update_instance, validate_structure (любое непустое подмножество). Срок 1…168 часов, по умолчанию UI 24 часа; без refresh. 32 случайных байта, формат ss1_ + base64url; в БД только SHA-256, owner, project, scopes, expires/revoked timestamps, UUID и безопасное имя. Список/выпуск/отзыв — только Auth.js session owner, same-origin JSON с обязательным Origin для mutations; Bearer не позволяет управлять делегированием. Секрет показывается один раз, не сохраняется в browser storage, после ухода/очистки исчезает.
+
+Локально пользователь вручную сохраняет секрет вне репозитория в обычный файл владельца с mode 0600, родительской папкой 0700; адаптер проверяет владельца, тип, права и отсутствие symlink. В config.toml хранится только путь STRUCTURE_TOKEN_FILE и фиксированный STRUCTURE_API_URL. Файл нужен desktop-процессу без зависимости от shell env; зашифрованный системный keychain предпочтительнее в будущем, но требует отдельной платформенной интеграции. Удаление файла + отзыв в UI прекращают доступ; ротация: выпустить новый, заменить файл, перезапустить MCP, отозвать старый. Никогда не передавать секрет аргументом shell, URL, в чат, Git, stdout или документацию. Агент не выпускает/использует реальный токен без отдельного согласия на конкретный проект/scopes/срок.
+
+## Инструменты и API
+
+Все объекты аргументов strict, unknown keys запрещены; JSON до 2 MB. JSON Schema публикуется tools/list, общий runtime parser дополнительно проверяет ядро. Идентификатор проекта UUID, instanceId 1…200 символов; expectedRevision целое 1…2147483646.
+
+get_project({projectId}) → {document: StructureProject, updatedAt: string}; GET /api/structures/:id с Bearer только в этом route. Только owner и project binding; без записи.
+
+update_instance({projectId, instanceId, expectedRevision, changes}) → {document, updatedAt}; POST /api/structures/:id/instance. changes непустой объект с опциональными parameters (полный StoneRoomParameters), position (все x/y/z), rotation (0/90/180/270). ID/definitionId не меняются. Общий сервис читает owner-проект, проверяет revision/существующий instance, применяет копию, проверяет ядро/материалы/пересечения и вызывает общий атомарный CAS UPDATE. Семь материалов UI, без blockstate properties; размеры/ссылки/лимиты — ядро. Один успешный update даёт revision+1. Без автоматического retry.
+
+validate_structure({projectId, document}) → {valid:boolean, diagnostics:[{code,message}], cellCount:number, conflictCount:number}; POST /api/structures/:id/validate. Проверяет доступ к существующему owner-проекту, ID документа должен совпадать с projectId; документ может быть локальным черновиком. Не сохраняет. Диагностика INVALID_STRUCTURE, UNSUPPORTED_MATERIAL, OVERLAP; максимум 20 сообщений, координаты всех конфликтов в ответ не выгружаются. Строгая модель формата 1 и бюджет ядра сохраняются; произвольный JS/NBT/SQL не принимаются.
+
+HTTP 400 INVALID_ARGUMENT, 401 UNAUTHORIZED (отозван/истёк тоже), 403 FORBIDDEN (scope), 404 NOT_FOUND (чужой/не тот проект/нет экземпляра), 409 CONFLICT, 413 TOO_LARGE, 415 UNSUPPORTED_MEDIA_TYPE, 503 UNAVAILABLE. Ответы ошибок статические, не содержат токен, аргументы или exception/SQL. MCP tool failures: isError:true и structuredContent {error:{code,message,status}}; malformed arguments отклоняет parser до HTTP. Неоднозначный сетевой исход → NETWORK_ERROR, проверить get_project и revision перед следующей правкой. stdout только протокол, диагностика stderr без исходных исключений.
+
+Batch/create/delete через MCP, polling, библиотеки, вложенность отложены. Новая версия видна в браузере после явной загрузки серверной версии; dirty требует подтверждения, stale save получает 409.

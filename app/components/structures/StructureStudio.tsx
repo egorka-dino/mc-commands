@@ -1,4 +1,5 @@
 "use client";
+import { StructureDelegations } from "./StructureDelegations";
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
@@ -238,5 +239,6 @@ export function StructureStudio() {
         <p className="structure-caption">Текстуры Minecraft Java 26.1.2 для полных блоков. Внутренние грани скрыты. Полёт проходит сквозь стены.</p>
       </section>
     </div>
+    <StructureDelegations key={project.id} projectId={project.id} enabled={user===true && cloud} signedIn={user===true} />
   </>;
 }

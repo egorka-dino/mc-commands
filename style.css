@@ -1429,3 +1429,14 @@ dialog.entity-preview:modal { position: fixed; inset: 0; margin: auto; width: ca
 .structure-editor-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .structure-projects button { white-space: normal; }
 .structure-confirmation { padding: 12px; margin-top: 12px; border: 1px solid var(--accent, #6da77b); border-radius: 8px; }
+
+/* Structure MCP setup stays readable on narrow screens. */
+.structure-mcp-help { max-width: 960px; margin: 32px auto; padding: 24px; min-width: 0; }
+.structure-mcp-help pre { max-width: 100%; overflow-x: auto; padding: 12px; background: #191c21; }
+.structure-mcp-help p { line-height: 1.6; overflow-wrap: anywhere; }
+.structure-delegations { margin-top: 24px; }
+.structure-delegations p { overflow-wrap: anywhere; }
+.structure-delegations fieldset { display: grid; gap: 12px; min-width: 0; }
+.structure-delegations label:has(input[type="checkbox"]) { display: flex; gap: 8px; align-items: center; }
+.structure-delegations input[type="checkbox"] { width: auto; margin: 0; }
+@media (max-width: 600px) { .structure-mcp-help { margin: 16px 12px; padding: 16px; } }

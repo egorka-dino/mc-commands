@@ -1,9 +1,11 @@
 import { deleteStructureProject, getStructureProject, updateStructureProject } from "../../../server/structure-projects";
 import { json, readBody, withUser } from "../http";
+import { withStructureAccess } from "../delegated-http";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ id: string }> };
 export async function GET(request: Request, context: Context) {
-  return withUser(request, async userId => json(await getStructureProject(userId, (await context.params).id)));
+  const id = (await context.params).id;
+  return withStructureAccess(request, id, "get_project", async userId => json(await getStructureProject(userId, id)));
 }
 export async function PUT(request: Request, context: Context) {
   return withUser(request, async userId => {
