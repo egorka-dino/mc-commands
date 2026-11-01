@@ -16,7 +16,8 @@
     "test:structure-viewer": "tsc app/components/structures/scene-geometry.ts app/components/structures/texture-materials.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck && node --test tests/structure-viewer.test.mjs",
     "test:structure-projects": "tsc app/server/structure-projects.ts app/api/structures/route.ts app/api/structures/[id]/route.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck --esModuleInterop && node --test tests/structure-projects.test.mjs",
     "test:structure-projects-neon": "npm run test:structure-projects && node --test tests/structure-projects-neon.test.mjs",
-    "test:structure-projects-session": "node tests/structure-projects-session.test.mjs"
+    "test:structure-projects-session": "node tests/structure-projects-session.test.mjs",
+    "test:structure-schematic": "tsc app/server/structure-schematic.ts app/api/structures/export/route.ts app/api/structures/[id]/export/route.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck --esModuleInterop && node --test tests/structure-schematic.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

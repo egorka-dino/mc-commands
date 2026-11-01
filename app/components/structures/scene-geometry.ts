@@ -1,15 +1,6 @@
 import type { Cell, Vec3 } from "../../structure-core";
 
-// Only opaque full cubes are exposed by this iteration's UI.
-export const MATERIALS = [
-  { id: "minecraft:stone_bricks", label: "Каменные кирпичи" },
-  { id: "minecraft:stone", label: "Камень" },
-  { id: "minecraft:cobblestone", label: "Булыжник" },
-  { id: "minecraft:deepslate_bricks", label: "Глубинносланцевые кирпичи" },
-  { id: "minecraft:oak_planks", label: "Дубовые доски" },
-  { id: "minecraft:bricks", label: "Кирпичи" },
-  { id: "minecraft:quartz_block", label: "Кварцевый блок" },
-] as const;
+export { MATERIALS } from "../../structure-core/materials";
 export const TEXTURE_VERSION = "26.1.2";
 export const TEXTURE_NAMES = ["stone_bricks", "stone", "cobblestone", "deepslate_bricks", "oak_planks", "bricks", "quartz_block_side", "quartz_block_top"] as const;
 export function faceTexture(id: string, normalY: number): string {

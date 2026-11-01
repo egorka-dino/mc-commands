@@ -30,3 +30,8 @@ Stone Room использует `width`, `length`, `height`, `wallThickness: 1`,
 `serializeProject`/`deserializeProject` сохраняют параметры, связи definitionId и revision. Это JSON-кодек; облачное хранилище поверх него реализовано в app/server/structure-projects.ts и дополнительно отклоняет конфликты геометрии. Все функции генерации и разбора не изменяют входную модель. Незнакомые версии не мигрируются молча.
 
 Проверки: `npm run test:structure-core`, `npx tsc --noEmit`, `npm run build`. Тесты покрывают точный объём и оболочку, 16 комбинаций дверей, размеры и материалы, повороты прямоугольной комнаты и портов, BlockState, JSON round trip, ограничения, конфликт solid/air и совокупный бюджет.
+
+
+## Адаптер Sponge v3 (этап 5)
+
+Формат 1 и генератор не меняются. Серверный `exportStructureSchematic(unknown)` валидирует проект, ограничивает материалы семью состояниями редактора для Java 1.21.5/DataVersion 4325, отклоняет конфликты и передаёт сгенерированные ячейки в `encodeSchematic`. Последний — внутренний адаптер, не HTTP-контракт для клиентских ячеек. Gzip NBT: пустой root → Schematic, Version=3, Blocks.Palette и VarInt Blocks.Data. Размеры max−min+1, Offset=min, WorldEdit Origin=[0,0,0]; индексы (x−minX)+(z−minZ)*Width+(y−minY)*Width*Length. Explicit air очищает мир, void и отсутствующие ячейки bounding box кодируются structure_void; нужен обычный WorldEdit `//paste` без -a/-v. Помимо бюджета ядра ограничен плотный bounding box (250000 ячеек/65535 по оси). Пустой проект сохранять можно, экспортировать нельзя. Entities, block entity NBT и биомы не экспортируются; существование произвольных core BlockState вне семи материалов этим этапом не обещается.

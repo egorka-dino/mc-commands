@@ -1,3 +1,4 @@
+import {readSchematic} from './helpers/schematic-reader.mjs';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
@@ -40,7 +41,17 @@ try{
   assert.equal((await request('/'+id,ownerCookie,'PUT',{document:invalid,expectedRevision:2})).status,400);
   assert.deepEqual(await(await request('/'+id)).json(),latest);
   assert.equal((await request('/'+id,ownerCookie,'DELETE',{expectedRevision:1})).status,409);
-  console.log('PASS: real Next.js → Auth.js test sessions → Neon, create/list/open/restore/update, foreign isolation, concurrent 200/409, no partial writes');
+  assert.equal((await request('/'+id+'/export','')).status,401);
+  assert.equal((await request('/'+id+'/export',otherCookie)).status,404);
+  const exported=await request('/'+id+'/export');assert.equal(exported.status,200);
+  const serverSchem=readSchematic(Buffer.from(await exported.arrayBuffer()));assert.equal(serverSchem.DataVersion,4325);
+  const local=structuredClone(latest.document);local.instances[0].parameters.floor.id='minecraft:oak_planks';
+  const snapshot=await request('/export','','POST',{document:local});assert.equal(snapshot.status,200);
+  const localSchem=readSchematic(Buffer.from(await snapshot.arrayBuffer()));
+  assert.equal(localSchem.at(24,11,-60),'minecraft:oak_planks');assert.equal(serverSchem.at(24,11,-60),'minecraft:stone_bricks');
+  assert.deepEqual(await(await request('/'+id)).json(),latest,'export does not save dirty snapshot or increment revision');
+
+  console.log('PASS: real Next.js → Auth.js test sessions → Neon, create/list/open/restore/update, foreign isolation, concurrent 200/409, no partial writes; saved/local .schem independently decoded, 401/404 isolation, no export writes');
 }finally{
   try{const response=await request('/'+id);if(response.ok){const saved=await response.json();assert.equal((await request('/'+id,ownerCookie,'DELETE',{expectedRevision:saved.document.revision})).status,200);}}finally{
     if(child.exitCode===null){const exited=once(child,'exit');child.kill('SIGTERM');await exited;}

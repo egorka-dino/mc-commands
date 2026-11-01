@@ -33,6 +33,10 @@ export function StructureStudio() {
   const [notice,setNotice] = useState("");
   const [conflict,setConflict] = useState(false);
   const [ready,setReady] = useState(false);
+  const [exportBusy,setExportBusy] = useState(false);
+  const [exportError,setExportError] = useState("");
+  const [exportNotice,setExportNotice] = useState("");
+  const [exportSource,setExportSource] = useState(false);
   const [confirmation,setConfirmation] = useState<{message:string;action:()=>void} | null>(null);
   const dirty = JSON.stringify(project) !== baseline;
   const [selected,setSelected] = useState<string | null>(null);
@@ -46,6 +50,23 @@ export function StructureStudio() {
       throw Error(body.error || "Не удалось выполнить запрос.");
     }
     return body;
+  }
+  async function downloadSchematic(saved=false) {
+    if (exportBusy) return;
+    setExportBusy(true); setExportError(""); setExportNotice(""); setExportSource(saved);
+    try {
+      const response=await fetch(saved ? `/api/structures/${project.id}/export` : "/api/structures/export", {
+        method:saved ? "GET" : "POST", cache:"no-store", signal:AbortSignal.timeout(20000),
+        ...(saved ? {} : {headers:{"Content-Type":"application/json"},body:JSON.stringify({document:project})}),
+      });
+      if (!response.ok) { const body=await response.json(); throw Error(body.error || "Не удалось создать файл."); }
+      const url=URL.createObjectURL(await response.blob()), link=document.createElement("a");
+      link.href=url; link.download=saved ? "saved-structure.schem" : "structure.schem";
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      setExportNotice(saved ? "Скачана сохранённая серверная версия. Локальные правки в неё не входят." : "Скачан снимок сцены на момент нажатия. Облачный проект не изменён.");
+    } catch (e) { setExportError(e instanceof Error && e.name==="Error" ? e.message : "Нет ответа от сервера. Повторите скачивание; сцена сохранена в редакторе."); }
+    finally { setExportBusy(false); }
   }
   async function refresh() {
     const body=await api(""); setProjects(body.projects); setUser(true);
@@ -168,6 +189,18 @@ export function StructureStudio() {
         <button className="btn" disabled={busy || !!confirmation} onClick={() => openProject(project.id,true)}>Загрузить серверную версию с подтверждением</button>
         <button className="btn" disabled={busy || !!confirmation} onClick={() => {setCloud(false); setProject({...project,id:crypto.randomUUID(),revision:0}); setBaseline(""); setConflict(false); setCloudError("");}}>Оставить правки в новом проекте</button>
       </div>}
+    </section>
+    <section className="panel structure-projects" aria-label="Экспорт постройки" aria-busy={exportBusy}>
+      <h2>Скачать .schem</h2>
+      <div className="structure-project-actions">
+        <button className="btn" disabled={exportBusy || busy || !!confirmation || !result.cells.length || !!result.conflicts.length} onClick={() => void downloadSchematic()}>Скачать текущую сцену</button>
+        {cloud && user===true && <button className="btn" disabled={exportBusy || busy || !!confirmation} onClick={() => void downloadSchematic(true)}>Скачать серверную версию</button>}
+      </div>
+      <p>Minecraft Java 1.21.5 · Sponge v3 · WorldEdit 7.3+. Текущую сцену можно скачать без входа и облачного сохранения, включая локальные правки.</p>
+      <p>Загрузите файл через <code>//schem load structure</code>, затем <code>//paste</code>. Воздух очищает внутренность и проёмы; промежутки между комнатами сохраняют мир. Не добавляйте <code>-a</code> (пропускает воздух) или <code>-v</code> (вставляет structure void). Начало сцены (0, 0, 0) совмещается с местом вставки; смещения комнат сохраняются.</p>
+      {exportBusy && <p role="status">Готовим файл…</p>}
+      {exportNotice && <p role="status">{exportNotice}</p>}
+      {exportError && <div role="alert" className="structure-error"><p>{exportError}</p><button className="btn" disabled={exportBusy || busy || !!confirmation} onClick={() => void downloadSchematic(exportSource)}>Повторить скачивание</button></div>}
     </section>
     <div className="structure-studio">
       <aside className="panel structure-settings" aria-label="Настройки постройки"><fieldset className="structure-editor-fields" disabled={busy || !!confirmation}>
