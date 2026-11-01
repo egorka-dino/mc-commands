@@ -1,0 +1,22 @@
+{
+  "minecraft": "26.1.2",
+  "source": "Mojang vanilla Java client, assets/minecraft",
+  "metadataUrl": "https://piston-meta.mojang.com/v1/packages/8f9f3c548c892ce41b78561138aeba112cba3490/26.1.2.json",
+  "clientUrl": "https://piston-data.mojang.com/v1/objects/4e618f09a0c649dde3fdf829df443ce0b8831e65/client.jar",
+  "clientSha1": "4e618f09a0c649dde3fdf829df443ce0b8831e65",
+  "clientSha256": "b1b3158572666445eff01e82fad8c7de2e4953db6d354f311730d77a8359d0b0",
+  "files": {
+    "stone_bricks.png": "24415444c9e4815aad4a3a349ecbfc0e027b96be25ac5b7c273c06f16c4fdd2f",
+    "stone.png": "b5e10adc72442bfb257ce7ba0b9bbe36475a0c8cdfec89b80dc9517203ff3e9f",
+    "cobblestone.png": "bcda95fdf5afa91747657aa198fc0b69ebf44141de30a718075f74045e9a5def",
+    "deepslate_bricks.png": "d9533c750ce1910c821626f4fe9187f5d36e9e9cf5efa4fb8fd1b2574ff8f6b1",
+    "oak_planks.png": "65665943ef9c8bcf63fc67d2083ed0c50243f724106d0e4bb1abea5d921b16d3",
+    "bricks.png": "3242cb8e441c940156633b0d867e08c887ddaeaa32343b212d4b1e5ca3dae123",
+    "quartz_block_side.png": "63d3d5c7184b3f83b269933b306ea587bc28792c9c5118227b218cd4e3a6bd8c",
+    "quartz_block_top.png": "63d3d5c7184b3f83b269933b306ea587bc28792c9c5118227b218cd4e3a6bd8c",
+    "quartz_block.json": "447bb3eca212446338e5673a29554e13f299e710ff2963c63b324c8f0d74a049",
+    "cube_column.json": "4cc89841e64bfb9be33aef096675291b585d05bae81cbbd14bf977f89aa81a6b",
+    "cube_all.json": "be3205d629ffb9e03834c3d1d083f8a2c62e9f9ae80820755129408634e9144a",
+    "cube.json": "3e4aacd02e816aeba38f83076596e18ded4cf49c01e17c62d1fce79850ffb84e"
+  }
+}

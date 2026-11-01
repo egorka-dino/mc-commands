@@ -5,7 +5,9 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import type { Cell } from "../../structure-core";
-import { flightStep, MATERIALS, SectionMesher } from "./scene-geometry";
+import { flightStep, SectionMesher } from "./scene-geometry";
+
+import { createTextureMaterials } from "./texture-materials";
 
 // Three's base lock() discards the promise returned by modern browsers.
 class SafePointerLockControls extends PointerLockControls {
@@ -27,13 +29,16 @@ export default function StructurePreview({cells}:{cells:Cell[]}) {
   const speed=useRef(12);
   const [speedValue,setSpeedValue]=useState(12), [locked,setLocked]=useState(false);
   const [error,setError]=useState(""), [flightError,setFlightError]=useState("");
+  const [textureError,setTextureError]=useState("");
   const [attempt,setAttempt]=useState(0);
   useEffect(() => {
     const container=host.current!;
     let renderer:THREE.WebGLRenderer;
     try { renderer=new THREE.WebGLRenderer({antialias:true}); }
     catch { setError("WebGL недоступен. Включи аппаратное ускорение или открой страницу в браузере с поддержкой WebGL 2. Настройки комнаты доступны без 3D."); return; }
-    setError("");
+    setError(""); setTextureError("");
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.NoToneMapping;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1,2));
     renderer.setClearColor("#141c26");
     container.appendChild(renderer.domElement);
@@ -45,11 +50,11 @@ export default function StructurePreview({cells}:{cells:Cell[]}) {
     orbit.target.set(5,3,5); orbit.enableDamping=true; orbit.maxDistance=100000;
     const fly=new SafePointerLockControls(camera,canvas,() => onPointerError());
     const grid=new THREE.GridHelper(160,80,0x456079,0x263747); grid.position.y=-0.02;
-    scene.add(grid,new THREE.HemisphereLight(0xe3efff,0x66717e,2.2));
-    const sun=new THREE.DirectionalLight(0xffffff,2); sun.position.set(20,40,15); scene.add(sun);
+    scene.add(grid,new THREE.AmbientLight(0xffffff,1.5));
+    const sun=new THREE.DirectionalLight(0xffffff,0.7); sun.position.set(20,40,15); scene.add(sun);
     const mesher=new SectionMesher(), chunks=new Map<string,THREE.Group>();
-    const materials=new Map(MATERIALS.map(m => [m.id as string,new THREE.MeshLambertMaterial({color:m.color,vertexColors:true})]));
-    const fallback=new THREE.MeshLambertMaterial({color:0x999999,vertexColors:true});
+    const textureMaterials=createTextureMaterials(names => setTextureError(`Не удалось загрузить текстуры: ${names.join(", ")}. Вместо них показана клетчатая заглушка. Проверь соединение и повтори загрузку.`));
+    const {materials,fallback}=textureMaterials;
     const bounds=new THREE.Box3(), center=new THREE.Vector3(), direction=new THREE.Vector3();
     let fitted=false, stopped=false, frame=0, lastTime=0;
     const keys=new Set<string>();
@@ -78,7 +83,7 @@ export default function StructurePreview({cells}:{cells:Cell[]}) {
           const geometry=new THREE.BufferGeometry();
           geometry.setAttribute("position",new THREE.Float32BufferAttribute(surface.positions,3));
           geometry.setAttribute("normal",new THREE.Float32BufferAttribute(surface.normals,3));
-          geometry.setAttribute("color",new THREE.Float32BufferAttribute(surface.shades,3));
+          geometry.setAttribute("uv",new THREE.Float32BufferAttribute(surface.uvs,2));
           geometry.computeBoundingSphere();
           group.add(new THREE.Mesh(geometry,materials.get(surface.material) ?? fallback));
         }
@@ -135,7 +140,7 @@ export default function StructurePreview({cells}:{cells:Cell[]}) {
       document.removeEventListener("visibilitychange",onVisibility); document.removeEventListener("pointerlockerror",onPointerError);
       canvas.removeEventListener("webglcontextlost",onContextLost);
       for (const group of chunks.values()) disposeChunk(group);
-      for (const material of materials.values()) material.dispose(); fallback.dispose();
+      textureMaterials.dispose();
       grid.geometry.dispose(); (Array.isArray(grid.material) ? grid.material : [grid.material]).forEach(m => m.dispose());
       scene.clear(); renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
     };
@@ -154,6 +159,7 @@ export default function StructurePreview({cells}:{cells:Cell[]}) {
       {!cells.length && !error && <p className="structure-empty">Твоя новая постройка начинается здесь<br /><small>Добавь Stone Room в настройках сцены</small></p>}
     </div>
     <p className="structure-caption">Обзор: тяни мышью для вращения, колесо — масштаб, правая кнопка — перемещение. Полёт: WASD, Space — вверх, Shift — вниз, мышь — взгляд, Escape — выход.</p>
+    {textureError && <div role="alert" className="structure-error"><p>{textureError}</p><button type="button" className="btn" onClick={() => { setLocked(false); setAttempt(n => n+1); }}>Повторить загрузку текстур</button></div>}
     {flightError && <p role="alert" className="structure-error">{flightError}</p>}
   </>;
 }

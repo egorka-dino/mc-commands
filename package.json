@@ -13,7 +13,7 @@
     "test:auth": "tsc app/server/auth-policy.ts --outDir .test-build/server --module commonjs --target es2022 --skipLibCheck && node --test tests/auth-policy.test.mjs",
     "test:auth-session": "node tests/auth-session.test.mjs",
     "test:structure-core": "tsc app/structure-core/index.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck && node --test tests/structure-core.test.mjs",
-    "test:structure-viewer": "tsc app/components/structures/scene-geometry.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck && node --test tests/structure-viewer.test.mjs"
+    "test:structure-viewer": "tsc app/components/structures/scene-geometry.ts app/components/structures/texture-materials.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck && node --test tests/structure-viewer.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

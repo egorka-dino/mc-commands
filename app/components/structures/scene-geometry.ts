@@ -2,14 +2,22 @@ import type { Cell, Vec3 } from "../../structure-core";
 
 // Only opaque full cubes are exposed by this iteration's UI.
 export const MATERIALS = [
-  { id: "minecraft:stone_bricks", label: "Каменные кирпичи", color: "#939a9f" },
-  { id: "minecraft:stone", label: "Камень", color: "#81888c" },
-  { id: "minecraft:cobblestone", label: "Булыжник", color: "#697278" },
-  { id: "minecraft:deepslate_bricks", label: "Глубинносланцевые кирпичи", color: "#454957" },
-  { id: "minecraft:oak_planks", label: "Дубовые доски", color: "#ba935d" },
-  { id: "minecraft:bricks", label: "Кирпичи", color: "#b56c53" },
-  { id: "minecraft:quartz_block", label: "Кварцевый блок", color: "#e5dfcf" },
+  { id: "minecraft:stone_bricks", label: "Каменные кирпичи" },
+  { id: "minecraft:stone", label: "Камень" },
+  { id: "minecraft:cobblestone", label: "Булыжник" },
+  { id: "minecraft:deepslate_bricks", label: "Глубинносланцевые кирпичи" },
+  { id: "minecraft:oak_planks", label: "Дубовые доски" },
+  { id: "minecraft:bricks", label: "Кирпичи" },
+  { id: "minecraft:quartz_block", label: "Кварцевый блок" },
 ] as const;
+export const TEXTURE_VERSION = "26.1.2";
+export const TEXTURE_NAMES = ["stone_bricks", "stone", "cobblestone", "deepslate_bricks", "oak_planks", "bricks", "quartz_block_side", "quartz_block_top"] as const;
+export function faceTexture(id: string, normalY: number): string {
+  // Vanilla 26.1.2 quartz_block inherits cube_column: both ends use the top texture.
+  if (id === "minecraft:quartz_block") return normalY ? "quartz_block_top" : "quartz_block_side";
+  const name = id.replace(/^minecraft:/, "");
+  return (TEXTURE_NAMES as readonly string[]).includes(name) ? name : "missing";
+}
 const key = ({ x, y, z }: Vec3) => `${x},${y},${z}`;
 const section = ({ x, y, z }: Vec3) => `${Math.floor(x / 16)},${Math.floor(y / 16)},${Math.floor(z / 16)}`;
 const faces = [
@@ -20,7 +28,7 @@ const faces = [
   { n: [0,0,1], corners: [[0,0,1],[1,0,1],[1,1,1],[0,1,1]] },
   { n: [0,0,-1], corners: [[1,0,0],[0,0,0],[0,1,0],[1,1,0]] },
 ];
-export type Surface = { material: string; positions: number[]; normals: number[]; shades: number[] };
+export type Surface = { material: string; positions: number[]; normals: number[]; uvs: number[] };
 export type SectionSurface = { origin: Vec3; surfaces: Surface[] };
 type Solid = Extract<Cell, { kind: "solid" }>;
 const signature = (c: Solid) => JSON.stringify([c.state.id, Object.entries(c.state.properties).sort()]);
@@ -51,13 +59,14 @@ export class SectionMesher {
       for (const c of bucket) for (const f of faces) {
         const p = c.position;
         if (next.has(key({ x:p.x+f.n[0], y:p.y+f.n[1], z:p.z+f.n[2] }))) continue;
-        let group = groups.get(c.state.id);
-        if (!group) { group = { material:c.state.id, positions:[], normals:[], shades:[] }; groups.set(c.state.id, group); }
-        const shade = ((p.x+p.y+p.z)%2 === 0 ? 1 : 0.92);
+        const texture = faceTexture(c.state.id, f.n[1]);
+        let group = groups.get(texture);
+        if (!group) { group = { material:texture, positions:[], normals:[], uvs:[] }; groups.set(texture, group); }
+        const uv = [[0,0],[1,0],[1,1],[0,1]];
         for (const i of [0,1,2,0,2,3]) {
           const v = f.corners[i];
           group.positions.push(p.x-origin.x+v[0], p.y-origin.y+v[1], p.z-origin.z+v[2]);
-          group.normals.push(...f.n); group.shades.push(shade,shade,shade);
+          group.normals.push(...f.n); group.uvs.push(...uv[i]);
         }
       }
       this.sections.set(s, { origin, surfaces:[...groups.values()] });

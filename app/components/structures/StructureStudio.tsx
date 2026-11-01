@@ -76,7 +76,7 @@ export function StructureStudio() {
         <StructurePreview cells={result.cells} />
         <div className="structure-status" aria-live="polite"><span>{result.cells.filter(c => c.kind==="solid").length.toLocaleString("ru")} блоков</span><span>{project.instances.length} комнат</span></div>
         {!!result.conflicts.length && <p role="alert" className="structure-error">Пересечение объёмов: {result.conflicts.length.toLocaleString("ru")} ячеек. В просмотре остаётся первая комната. Перемести комнаты, чтобы убрать конфликт.</p>}
-        <p className="structure-caption">Цветовая схема полных блоков без игровых текстур. Внутренние грани скрыты. Полёт проходит сквозь стены.</p>
+        <p className="structure-caption">Текстуры Minecraft Java 26.1.2 для полных блоков. Внутренние грани скрыты. Полёт проходит сквозь стены.</p>
       </section>
     </div>
   </>;
