@@ -1380,3 +1380,43 @@ dialog.entity-preview:modal { position: fixed; inset: 0; margin: auto; width: ca
 .entity-preview:modal .entity-preview-stage .entity-preview-canvas { flex: 1; height: auto; min-height: 0; }
 @keyframes preview-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .preview-spinner { animation: none; } }
+
+/* Structure Studio: room parameters and a section-meshed block scene. */
+.structure-container { max-width: 1500px; }
+.structure-notice { color: var(--text-dim, #aeb8c5); margin: 0 0 20px; font-size: 14px; }
+.structure-studio { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; align-items: start; }
+.structure-settings { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.structure-settings h2 { margin: 0; }
+.structure-panel-heading { display: flex; align-items: center; justify-content: space-between; }
+.structure-panel-heading span, .structure-settings small { color: #aeb8c5; font-size: 12px; }
+.structure-settings label { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; font-size: 13px; }
+.structure-settings select, .structure-settings input[type=number] { width: 100%; min-width: 0; }
+.structure-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.structure-doors { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.structure-doors label { flex-direction: row; align-items: center; }
+.structure-view { min-width: 0; position: sticky; top: 16px; padding: 18px; }
+.structure-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.structure-toolbar .btn { padding: 10px 12px; font-size: 12px; }
+.structure-toolbar label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+.structure-toolbar input { width: 90px; }
+.structure-toolbar output { min-width: 2ch; }
+.structure-canvas-wrap { position: relative; border: 1px solid #304356; border-radius: 8px; overflow: hidden; }
+.structure-canvas { height: clamp(360px, 60vh, 720px); width: 100%; }
+.structure-canvas canvas { display: block; touch-action: none; }
+.structure-empty, .structure-webgl-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; gap: 12px; }
+.structure-empty { pointer-events: none; color: #cfdeeb; line-height: 1.8; }
+.structure-webgl-error { background: #141c26; }
+.structure-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; pointer-events: none; font: 24px monospace; }
+.structure-status { display: flex; gap: 20px; padding-top: 14px; font-size: 13px; color: #bcd1df; }
+.structure-caption { font-size: 12px; line-height: 1.6; color: #aeb8c5; margin: 14px 0 0; }
+.structure-error { color: #ffba9d; font-size: 13px; line-height: 1.6; }
+@media (max-width: 900px) {
+  .structure-studio { grid-template-columns: minmax(0,1fr); }
+  .structure-view { position: static; grid-row: 1; }
+  .structure-canvas { height: 380px; }
+}
+@media (max-width: 480px) {
+  .structure-view { padding: 12px; }
+  .structure-canvas { height: 320px; }
+  .structure-toolbar .btn { flex: 1; }
+}
