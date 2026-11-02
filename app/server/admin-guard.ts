@@ -1,8 +1,8 @@
-import { getAuthUser, isGoogleAuthConfigured } from "./auth";
+import { getAuthUser, isAuthConfigured } from "./auth";
 
 export async function requireAdminResponse() {
-  if (!isGoogleAuthConfigured()) {
-    return Response.json({ ok: false, error: "Google-вход не настроен" }, { status: 503 });
+  if (!isAuthConfigured()) {
+    return Response.json({ ok: false, error: "Авторизация не настроена" }, { status: 503 });
   }
 
   const user = await getAuthUser();

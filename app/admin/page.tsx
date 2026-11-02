@@ -1,16 +1,16 @@
 import { redirect } from "next/navigation";
-import { getAuthUser, isGoogleAuthConfigured } from "../server/auth";
+import { getAuthUser, isAuthConfigured } from "../server/auth";
 import { AdminNav } from "./admin-nav";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  if (!isGoogleAuthConfigured()) {
+  if (!isAuthConfigured()) {
     return (
       <main className="admin-page">
         <section className="admin-panel">
           <h1>Админка</h1>
-          <p>Google-вход ещё не настроен: добавь OAuth-ключи и AUTH_SECRET.</p>
+          <p>Авторизация ещё не настроена: настрой Google OAuth или сервисный доступ с AUTH_SECRET.</p>
         </section>
       </main>
     );

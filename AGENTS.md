@@ -33,6 +33,7 @@
   - Production build: `npm run build`.
   - Production start после build: `npm run start`.
   - Для auth/db использовать `.env.local`; пример переменных хранится в `.env.example`.
+  - Для отладки с авторизацией использовать `/automation`: отдельная сессия Codex на 5 минут, роли пользователь/администратор. Локальный ключ в `.env.local`, Preview-ключ в `.env.automation-preview.local`, Production-ключ в `.env.automation-production.local`; читать без вывода. После проверки выходить. Подробности в `docs/developer-documentation.md`, раздел "Сервисный доступ Codex".
   - Локальные переменные из Vercel можно подтянуть командой `npx vercel@latest env pull .env.local`.
   - Если изменения заметно затрагивают пользовательский интерфейс, сразу делать Vercel preview deployment (`npx vercel deploy --yes`) и проверять preview URL, даже если локальная проверка проходит.
   - Если проверка функциональности зависит от Google OAuth/Neon или локально auth/db мешают нормальной валидации, сразу делать Vercel preview deployment (`npx vercel deploy --yes`) и проверять preview URL.

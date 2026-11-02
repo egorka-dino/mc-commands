@@ -20,7 +20,9 @@
     "test:structure-schematic": "tsc app/server/structure-schematic.ts app/api/structures/export/route.ts app/api/structures/[id]/export/route.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck --esModuleInterop && node --test tests/structure-schematic.test.mjs",
     "build:structure-mcp": "tsc app/structure-core/operations.ts --rootDir app --outDir tools/structure-mcp/.build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck",
     "test:structure-batch-neon": "npm run test:structure-mcp && node --test tests/structure-batch-neon.test.mjs",
-    "test:structure-mcp": "npm run build:structure-mcp && tsc app/server/structure-operations.ts app/api/structures/[id]/instances/batch/route.ts app/api/structures/delegations/route.ts app/api/structures/[id]/instance/route.ts app/api/structures/[id]/validate/route.ts app/api/structures/[id]/route.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck --esModuleInterop && node --test tests/structure-mcp.test.mjs tests/structure-batch.test.mjs tools/structure-mcp/stdio.test.mjs"
+    "test:structure-mcp": "npm run build:structure-mcp && tsc app/server/structure-operations.ts app/api/structures/[id]/instances/batch/route.ts app/api/structures/delegations/route.ts app/api/structures/[id]/instance/route.ts app/api/structures/[id]/validate/route.ts app/api/structures/[id]/route.ts --rootDir app --outDir .test-build --module commonjs --moduleResolution node --target es2022 --strict --skipLibCheck --esModuleInterop && node --test tests/structure-mcp.test.mjs tests/structure-batch.test.mjs tools/structure-mcp/stdio.test.mjs",
+    "test:automation": "tsc app/server/automation-auth.ts --outDir .test-build/server --module commonjs --target es2022 --skipLibCheck && node --test tests/automation-auth.test.mjs",
+    "test:automation-session": "node tests/automation-session.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

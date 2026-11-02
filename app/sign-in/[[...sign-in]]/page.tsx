@@ -9,8 +9,8 @@ type Props = { searchParams?: Promise<Record<string, string | string[] | undefin
 export default async function SignInPage({ searchParams }: Props) {
   const params = await searchParams;
   const redirectUrl = getSafeRedirectUrl(params?.redirect_url);
-  if (!isGoogleAuthConfigured()) return <main className="auth-page">Вход через Google ещё не настроен.</main>;
   if (await getAuthUser()) redirect(redirectUrl === "/sign-in" ? "/" : redirectUrl);
+  if (!isGoogleAuthConfigured()) return <main className="auth-page">Вход через Google ещё не настроен.</main>;
 
   return (
     <main className="auth-page">

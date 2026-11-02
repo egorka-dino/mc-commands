@@ -1,12 +1,12 @@
-import { getAuthUser, isGoogleAuthConfigured } from "../../../../server/auth";
+import { getAuthUser, isAuthConfigured } from "../../../../server/auth";
 import { listExarotonServers } from "../../../../server/exaroton";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 async function requireAdmin() {
-  if (!isGoogleAuthConfigured()) {
-    return Response.json({ ok: false, error: "Google-вход не настроен" }, { status: 503 });
+  if (!isAuthConfigured()) {
+    return Response.json({ ok: false, error: "Авторизация не настроена" }, { status: 503 });
   }
 
   const user = await getAuthUser();

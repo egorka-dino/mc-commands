@@ -7,7 +7,7 @@ export async function GET() {
   const user = await getAuthUser();
 
   return Response.json({
-    provider: "google",
+    provider: user?.id.startsWith("automation:") ? "automation" : "google",
     configured,
     authenticated: Boolean(user),
     user: user

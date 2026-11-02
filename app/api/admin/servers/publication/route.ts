@@ -1,5 +1,5 @@
 import { getDatabaseUrlStatus } from "../../../../server/db";
-import { getAuthUser, isGoogleAuthConfigured } from "../../../../server/auth";
+import { getAuthUser, isAuthConfigured } from "../../../../server/auth";
 import {
   listExarotonServerPublications,
   setExarotonServerPublished,
@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 async function requireAdmin() {
-  if (!isGoogleAuthConfigured()) {
-    return Response.json({ ok: false, error: "Google auth is not configured" }, { status: 503 });
+  if (!isAuthConfigured()) {
+    return Response.json({ ok: false, error: "Authentication is not configured" }, { status: 503 });
   }
 
   const user = await getAuthUser();

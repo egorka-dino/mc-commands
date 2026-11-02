@@ -1,6 +1,12 @@
 import { auth } from "./google-auth";
 import { getAppUserId, isAdminEmail, isGoogleAuthConfigured } from "./auth-policy";
 
+import { automationEnabled, validAutomationIdentity } from "./automation-auth";
+
+export function isAuthConfigured() {
+  return isGoogleAuthConfigured() || automationEnabled();
+}
+
 export { isGoogleAuthConfigured } from "./auth-policy";
 
 export type AuthUser = {
@@ -12,10 +18,20 @@ export type AuthUser = {
 } | null;
 
 export async function getAuthUser(): Promise<AuthUser> {
-  if (!isGoogleAuthConfigured()) return null;
+  if (!isAuthConfigured()) return null;
   const session = await auth();
   const user = session?.user;
-  if (!user?.id || !user.email) return null;
+  if (user?.authType === "automation") {
+    if (!validAutomationIdentity(user) || user.id !== `automation:${user.automationRole}`) return null;
+    return {
+      id: user.id,
+      name: user.automationRole === "admin" ? "Codex (администратор)" : "Codex (пользователь)",
+      email: null,
+      imageUrl: null,
+      isAdmin: user.automationRole === "admin",
+    };
+  }
+  if (!isGoogleAuthConfigured() || !user?.id || !user.email) return null;
   return {
     id: getAppUserId(user.id),
     name: user.name || user.email || "Игрок",

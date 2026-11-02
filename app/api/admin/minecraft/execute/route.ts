@@ -1,4 +1,4 @@
-import { getAuthUser, isGoogleAuthConfigured } from "../../../../server/auth";
+import { getAuthUser, isAuthConfigured } from "../../../../server/auth";
 import { buildMinecraftExecutionCommand } from "../../../../server/minecraft-command-execution";
 import { executeExarotonCommand, listExarotonServers } from "../../../../server/exaroton";
 
@@ -10,8 +10,8 @@ type Mode = "give" | "summon";
 const playerNamePattern = /^[A-Za-z0-9_]{1,16}$/;
 
 async function requireAdmin() {
-  if (!isGoogleAuthConfigured()) {
-    return Response.json({ ok: false, error: "Google-вход не настроен" }, { status: 503 });
+  if (!isAuthConfigured()) {
+    return Response.json({ ok: false, error: "Авторизация не настроена" }, { status: 503 });
   }
 
   const user = await getAuthUser();

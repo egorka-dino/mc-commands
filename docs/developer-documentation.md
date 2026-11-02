@@ -72,13 +72,13 @@
 
 - Прямой Google OAuth работает через Auth.js (`next-auth` v5 beta); Clerk SDK и middleware удалены. Серверные страницы и API используют единый `getAuthUser()` и проверяют сессию на каждом защищённом запросе.
 - OAuth-приложение находится в отдельном Google Cloud проекте `mc-commands-egorka` (MC Commands), клиент `MC Commands Web`, биллинг не подключён. Режим Testing: тестовые аккаунты задаются в Google Auth Platform → Audience.
-- Нужны `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, случайный `AUTH_SECRET` (не менее 32 байт). Без них вход отключён, защищённые API возвращают 503, публичные генераторы доступны.
-- Google Cloud OAuth client типа Web application: разрешённые callback URI — `http://localhost:3000/api/auth/callback/google`, `https://mc-commands.vercel.app/api/auth/callback/google`, `https://mc-commands.egorka.fun/api/auth/callback/google`. Каждый preview URL требует отдельного точного callback URI. Не задавать production AUTH_URL в Preview.
+- Нужны `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, случайный `AUTH_SECRET` (не менее 32 байт). Без Google и без сервисной конфигурации административные API возвращают 503; публичные генераторы доступны.
+- Google Cloud OAuth client типа Web application: разрешённые callback URI — `http://localhost:3000/api/auth/callback/google`, `https://mc-commands.vercel.app/api/auth/callback/google`, `https://mc-commands.egorka.fun/api/auth/callback/google`. Каждый preview URL требует отдельного точного callback URI для Google; сервисный вход `/automation` работает без callback URI. Не задавать production AUTH_URL в Preview.
 - Auth.js обрабатывает state, PKCE, nonce и зашифрованную HttpOnly сессию сроком 30 дней; принимается только Google-профиль с `email_verified: true`. OAuth-токены не отправляются через `/api/auth/status`.
 - Кнопки шапки используют `signIn("google")` / `signOut()` из `next-auth/react` напрямую: Auth.js получает CSRF-токен и выполняет POST, затем делает полную навигацию. Промежуточных страниц и подтверждения выхода нет. Выход из админки возвращает на `/`, чтобы защищённая страница не запускала вход снова.
 - `/sign-in` автоматически запускает Google OAuth при открытии старой ссылки или редиректе с защищённой страницы; при OAuth-ошибке показывает ручной повтор, чтобы не создавать цикл. Уже авторизованного пользователя возвращает на сайт. `/sign-up` перенаправляет туда же. `/sign-out` сохраняет совместимость со старыми ссылками: GET только возвращает на сайт и не меняет сессию. Старые `/auth/complete` и `/api/auth/google?callbackUrl=...` сохраняют безопасный возврат по относительному пути.
 - `AUTH_ADMIN_EMAILS` — серверный список подтверждённых Google email через запятую. По умолчанию администраторов нет. Права вычисляются на каждом запросе, клиент и JWT не задают роль. Тестовые пользователи Google OAuth не получают административных прав автоматически.
-- `/api/auth/status` возвращает `provider: "google"`, готовность и пользователя; ответ `private, no-store`, `Vary: Cookie`. Шапка загружает его на клиенте и повторяет запрос при смене пути, после входа/выхода состояние перечитывается при полной загрузке страницы; публичные страницы не ждут OAuth handshake.
+- `/api/auth/status` возвращает `provider: "google"` или `"automation"`, готовность Google OAuth и пользователя; ответ `private, no-store`, `Vary: Cookie`. Шапка загружает его на клиенте и повторяет запрос при смене пути, после входа/выхода состояние перечитывается при полной загрузке страницы; публичные страницы не ждут OAuth handshake.
 - Новые аккаунты имеют внутренний ID `google:<sub>`. Для сохранения старых мест до первого входа заполнить `AUTH_LEGACY_USER_IDS` JSON-объектом вида `{"GOOGLE_SUB":"user_CLERK_ID"}`. Допускается только однозначное соответствие; некорректная конфигурация блокирует доступ вместо выдачи чужих данных. Email для автоматического связывания не используется, строки `player_locations` не переписываются.
 - `node --env-file=.env.local tools/auth/export-clerk.mjs` экспортирует соответствия подключённых Google-аккаунтов и email прежних администраторов в игнорируемый `.env.auth-migration.local`. Скрипт только читает Clerk API. До переключения проверить отчёт о пользователях без Google и перенести значения в нужное окружение Vercel; для таких пользователей соответствие требуется установить вручную после проверки владельца. Старые Clerk cookies перестанут работать, пользователи должны войти заново.
 - Проверки: `npm run test:auth` проверяет конфигурацию, безопасный возврат и соответствия ID; после `npm run build` команда `npm run test:auth-session` поднимает production сервер на 3197 с временными тестовыми ключами и проверяет реальные Auth.js cookies, истечение/подмену, права API, CSRF и выход. Внешние Google/Neon/Exaroton ключи не используются.
@@ -458,3 +458,50 @@ WorldEdit 7.4.6 на Fabric 26.3: реальный сервер загрузил
 
 
 Для одновременной работы Codex с production и preview задаются два stdio-сервера (например, structure_prod и structure_preview), каждый с собственным фиксированным STRUCTURE_API_URL и STRUCTURE_TOKEN_FILE. Production — https://mc-commands.egorka.fun; preview указывает конкретный проверенный deployment. Токен в config.toml не хранится. Runtime можно установить в постоянную пользовательскую папку независимо от временной рабочей копии, сохранив server.mjs, .build и собственные package/lockfile с SDK 1.32.2. После изменения настроек MCP перезапускается; без действующего файла делегирования сервер не стартует, поэтому подготовленное подключение держится enabled=false. Перед выпуском нужны явные проект/scopes/срок; настройка подключения не выдаёт эти права. Разные origins/файлы не гарантируют разделения данных, если Preview и Production используют одну Neon. Источник настройки Codex: [официальная документация MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli), проверено 2026-11-01.
+
+
+## Сервисный доступ Codex
+
+Скрытая из общей навигации страница `/automation` использует Auth.js Credentials
+(provider `automation`). Это отдельная сервисная учетная запись, без Google OAuth,
+callback URI и доступа к данным от имени реального пользователя. Форма принимает
+ключ только POST-запросом; Auth.js защищает вход и выход через CSRF. Ключ нельзя
+передавать в URL, печатать в логи, ответы инструментов или сохранять в Git.
+
+Включение: `AUTH_SECRET`, `AUTOMATION_ACCESS_ENABLED=true` и отдельный случайный
+`AUTOMATION_ACCESS_SECRET` длиной 32–512 символов. При выключенном флаге,
+отсутствующем/коротком ключе или отсутствии `AUTH_SECRET` форма возвращает 404,
+Credentials-вход закрыт. Для каждого окружения используются разные ключи.
+Локальный ключ хранится в игнорируемом `.env.local`, Preview-ключ — в
+`.env.automation-preview.local` (права 600) и Vercel Preview Secret. Эти файлы
+исключены из загрузки на Vercel через `.vercelignore`. Production-ключ хранится в `.env.automation-production.local` (права 600) и
+Vercel Production Secret; он отличается от ключей локального запуска и Preview.
+
+Форма предлагает роли `member` (по умолчанию) и `admin`. Владение ключом позволяет
+выбрать любую из этих ролей; это операторский секрет. Идентификаторы строго
+`automation:member` и `automation:admin`, имена отображаются как Codex с указанием
+роли, email отсутствует. Места сохраняются под отдельным сервисным ID; данные
+Google-пользователей не подменяются. Роль `admin` открывает штатные административные
+API, в том числе выполнение команд, с теми же проверками бизнес-логики.
+Сам доступ не дает разрешения выполнять команды на боевых серверах при отладке.
+
+Сессия — зашифрованная HttpOnly cookie Auth.js. Срок доступа фиксирован:
+5 минут от входа; чтение/обновление сессии его не продлевает. Сервер каждый раз
+проверяет роль, срок и версию ключа. Смена ключа или отключение флага с новым
+deployment отзывают все старые сервисные сессии. Обычные Google-сессии сохраняют
+срок 30 дней и проверку `AUTH_ADMIN_EMAILS`. Сервисный доступ не требует
+настроенного Google OAuth ни для страниц админки, ни для API.
+
+Для браузерной проверки открыть `<origin>/automation`, прочитать ключ нужного
+окружения локально без вывода, заполнить password-поле и выбрать роль. По окончании
+выйти штатной кнопкой. Для HTTP использовать `/api/auth/csrf`, затем POST
+`/api/auth/callback/automation` с CSRF cookie, `csrfToken`, `key`, `role` и
+`callbackUrl`; сохранить полученную cookie в памяти. Bearer-ключ не принимается
+прикладными API. Выход — POST `/api/auth/signout` с CSRF.
+
+Проверки: `npm run test:automation` проверяет ключ, сроки, отключение и ротацию;
+после `npm run build` команда `npm run test:automation-session` запускает настоящий
+production-сервер на 3198 без Google/Neon/Exaroton и проверяет Credentials-вход,
+CSRF, обе роли, отказ административного API обычному пользователю, срок JWT,
+отсутствие продления доступа, отказ старой версии ключа и штатный выход.
+`npm run test:auth-session` проверяет сохранение Google-сценариев.

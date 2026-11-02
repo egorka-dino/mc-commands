@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { AdminNav } from "../admin-nav";
-import { getAuthUser, isGoogleAuthConfigured } from "../../server/auth";
+import { getAuthUser, isAuthConfigured } from "../../server/auth";
 import { getDatabaseUrlStatus } from "../../server/db";
 import { listLibraryItems, type LibraryItem } from "../../server/library-items";
 import { listLibraryMobs, type LibraryMob } from "../../server/library-mobs";
@@ -10,12 +10,12 @@ import { ScenariosClient } from "./scenarios-client";
 export const dynamic = "force-dynamic";
 
 export default async function AdminScenariosPage() {
-  if (!isGoogleAuthConfigured()) {
+  if (!isAuthConfigured()) {
     return (
       <main className="admin-page">
         <section className="admin-panel">
           <h1>Сценарии</h1>
-          <p>Google-вход ещё не настроен: добавь OAuth-ключи и AUTH_SECRET.</p>
+          <p>Авторизация ещё не настроена: настрой Google OAuth или сервисный доступ с AUTH_SECRET.</p>
         </section>
       </main>
     );
