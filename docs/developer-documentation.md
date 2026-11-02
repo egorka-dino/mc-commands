@@ -2,6 +2,18 @@
 
 Документация для разработчиков и администраторов приложения `mc-commands`.
 
+## C4-модель архитектуры
+
+Интерактивные C1/C2/C3-диаграммы и схемы AI-запроса и выполнения сценария публикуются
+на [GitHub Pages](https://egorka-dino.github.io/mc-commands/). Исходная модель находится
+в `docs/architecture/workspace.dsl`; [инструкция](architecture/README.md) описывает
+фрагменты модели, общие компоненты и локальную сборку. Общие give/summon engines
+подключаются через один DSL-фрагмент в браузерный и серверный контейнеры.
+
+Workflow `Architecture` проверяет DSL в PR, сохраняет сайт как artifact и публикует
+изменения из `main` в Pages. Сборка требует Java 21 и закреплённого Structurizr,
+работает независимо от Next.js, OAuth, Neon и деплоя приложения на Vercel.
+
 ## Стек и окружение
 
 - Сайт работает как Next.js App Router приложение на React и TypeScript.

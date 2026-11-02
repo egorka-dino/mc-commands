@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Архитектура mc-commands</title>
+  <style>
+    :root { color-scheme:light dark; font-family:system-ui,sans-serif; line-height:1.6; }
+    body { max-width:900px; padding:32px 20px 60px; margin:auto; background:light-dark(#f8fafb,#141b20); color:light-dark(#1e3544,#e1ecf3); }
+    h1,h2 { line-height:1.2; } h1 { margin-bottom:12px; } h2 { margin-top:36px; }
+    a { color:light-dark(#175e92,#8fc8ed); text-underline-offset:3px; }
+    li { margin:12px 0; } code { overflow-wrap:anywhere; }
+    .levels { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:16px 36px; padding:0; list-style:none; }
+    .levels li { border-top:1px solid light-dark(#c2d2dc,#385160); padding-top:16px; }
+    .levels a { display:block; font-size:1.15rem; font-weight:600; }
+    .levels span { display:block; margin-top:6px; }
+    nav { display:flex; flex-wrap:wrap; gap:8px 24px; }
+  </style>
+</head>
+<body>
+  <nav aria-label="Документация">
+    <a href="https://github.com/egorka-dino/mc-commands/tree/__SOURCE_REF__/docs/architecture">Исходники DSL и инструкция</a>
+    <a href="https://github.com/egorka-dino/mc-commands/blob/__SOURCE_REF__/docs/developer-documentation.md">Техническая документация</a>
+    <a href="https://mc-commands.egorka.fun">Приложение</a>
+  </nav>
+  <h1>Архитектура mc-commands</h1>
+  <p>Генераторы команд Minecraft Java Edition 1.21.5+. Восемь представлений одной C4-модели: от контекста системы до общих генераторов и выполнения сценариев.</p>
+  <ul class="levels">
+    <li><a href="diagrams/#context">C1 · Контекст</a><span>Игрок, администратор и внешние системы.</span></li>
+    <li><a href="diagrams/#containers">C2 · Контейнеры</a><span>Браузерный клиент, Next.js на Vercel и Neon Postgres.</span></li>
+    <li><a href="diagrams/#browser-components">C3 · Браузер</a><span>Редакторы, AI-помощник, 3D-preview и локальные данные.</span></li>
+    <li><a href="diagrams/#server-components">C3 · Сервер</a><span>API, авторизация, хранилища и интеграции.</span></li>
+    <li><a href="diagrams/#editors">C3 · Общие редакторы</a><span>Одни редакторы для публичных страниц и админских библиотек.</span></li>
+    <li><a href="diagrams/#server-execution">C3 · Выполнение команд</a><span>Сценарии, общие генераторы и клиент Exaroton.</span></li>
+    <li><a href="diagrams/#ai-refinement">Сценарий · AI-помощник</a><span>Запрос со snapshot и проверка изменений на сервере.</span></li>
+    <li><a href="diagrams/#scenario-execution">Сценарий · Minecraft-команды</a><span>Проверка прав, загрузка сценария и выполнение действий.</span></li>
+  </ul>
+  <h2>Как переходить между уровнями</h2>
+  <p>Двойной клик по mc-commands в C1 открывает контейнеры. Двойной клик по браузеру или серверу в C2 открывает компоненты. Если у элемента есть несколько схем или ссылка на исходник, просмотрщик предложит выбрать переход.</p>
+  <p>Пробел открывает поиск схем. Клавиши <code>+</code> и <code>−</code> меняют масштаб, <code>c</code> помещает схему в экран, <code>?</code> открывает справку. Ссылкой с <code>#ключ-схемы</code> можно поделиться.</p>
+  <h2>Как модель переиспользует компоненты</h2>
+  <p><code>shared-command-engines.dsl</code> подключается через <code>!include</code> в браузер и сервер: это одни исходные TypeScript-модули, работающие в двух средах. Представления редакторов и выполнения команд повторно используют элементы общей модели. Правка модели обновляет все связанные схемы.</p>
+</body>
+</html>
